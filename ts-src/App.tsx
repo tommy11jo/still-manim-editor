@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react"
 import CodeMirror from "@uiw/react-codemirror"
 import { python } from "@codemirror/lang-python"
+import CustomCanvas from "./CustomCanvas"
+import { Still_RGBA, Still_Subpath } from "./canvas/types"
 
 declare global {
   interface Window {
@@ -13,18 +15,15 @@ interface Pyodide {
   runPythonAsync: (code: string) => Promise<any>
   FS: any
 }
-const code1 = `
-with open("output.txt", "w") as f:
-    f.write("Hello from Python attempt 2!")
-`
+
 const code2 = `
 print('Hello, world!') # does not show
 3 + 10
 `
+
 const App = () => {
   const [pyodide, setPyodide] = useState<Pyodide | null>(null)
   const [output, setOutput] = useState("Loading...")
-  //   const [code, setCode] = useState(code1)
   const [code, setCode] = useState(code2)
 
   useEffect(() => {
@@ -44,16 +43,10 @@ const App = () => {
     }
     setCode(newCode)
     try {
-      // Example: code 1
-      let result = await pyodide.runPythonAsync(code)
-      console.log("result is", result)
-      setOutput(result.toString())
-
-      // Example: code 2
-      // await pyodide.runPythonAsync(newCode)
-      // const fs = pyodide.FS
-      // const data = fs.readFile("output.txt", { encoding: "utf8" })
-      // setOutput(`File contents: ${data}`)
+      await pyodide.runPythonAsync(newCode)
+      const fs = pyodide.FS
+      const data = fs.readFile("output.txt", { encoding: "utf8" })
+      setOutput(`File contents: ${data}`)
     } catch (error) {
       if (error instanceof Error) {
         setOutput(error.message)
@@ -62,6 +55,35 @@ const App = () => {
       }
     }
   }
+  const subpaths: Still_Subpath = [
+    [
+      [10, 10],
+      [100, 100],
+      [200, 100],
+      [300, 10],
+      [300, 10],
+      [400, -80],
+      [500, -80],
+      [600, 10],
+    ],
+    [
+      [50, 150],
+      [150, 250],
+      [250, 250],
+      [350, 150],
+      [350, 150],
+      [450, 50],
+      [550, 50],
+      [650, 150],
+      [650, 150],
+      [750, 250],
+      [850, 250],
+      [950, 150],
+    ],
+  ]
+  const strokeWidth = 2
+  const strokeColor: Still_RGBA = [1, 0, 0, 1]
+  const fillColor: Still_RGBA = [0, 1, 0, 0.5]
   return (
     <div style={{ display: "flex", height: "100vh" }}>
       <div style={{ width: "50%", height: "100%" }}>
@@ -74,7 +96,24 @@ const App = () => {
           height="100%"
         />
       </div>
-      <div style={{ width: "50%", backgroundColor: "#f5f5f5" }}>{output}</div>
+      <div style={{ width: "50%", backgroundColor: "#f5f5f5" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "3px",
+          }}
+        >
+          <CustomCanvas
+            subpaths={subpaths}
+            fillColor={fillColor}
+            strokeWidth={strokeWidth}
+            strokeColor={strokeColor}
+          />
+          <div>Output:</div>
+          <div>{output}</div>
+        </div>
+      </div>
     </div>
   )
 }
