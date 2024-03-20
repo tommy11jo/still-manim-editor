@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react"
 import CodeMirror from "@uiw/react-codemirror"
 import { python } from "@codemirror/lang-python"
-import CustomCanvas from "./CustomCanvas"
 import { Still_RGBA, Still_Subpath } from "./canvas/types"
+import { displayVectorized, setupCanvasCtx } from "./canvas/lib"
 
 declare global {
   interface Window {
@@ -13,28 +13,78 @@ declare global {
 interface Pyodide {
   loadPackage: (packages: string[] | string) => Promise<void>
   runPythonAsync: (code: string) => Promise<any>
+  setDebug: Function
   FS: any
+  globals: Record<string, any>
 }
 
-const code2 = `
-print('Hello, world!') # does not show
-3 + 10
-`
+type VectorizedObject = {
+  subpath: Still_Subpath // this might need to be 'subpaths', a list
+  fillColor: Still_RGBA
+  strokeColor: Still_RGBA
+  strokeWidth: number
+}
+type VectorizedState = VectorizedObject[]
+
+const WIDTH = 800
+const HEIGHT = 800
+// const CODE_PATH = "demos/demo.py"
+const CODE_PATH = "demos/demo-messages.py"
+
+const testStrokeWidth = 2
+const testStrokeColor: Still_RGBA = [1, 0, 0, 1]
+const testFillColor: Still_RGBA = [0, 1, 0, 0.5]
 
 const App = () => {
+  const [canvasRef, setCanvasRef] = useState<HTMLCanvasElement | null>(null)
+  const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null)
+  const [vectorizedState, setVectorizedState] = useState<VectorizedState>([])
+
   const [pyodide, setPyodide] = useState<Pyodide | null>(null)
   const [output, setOutput] = useState("Loading...")
-  const [code, setCode] = useState(code2)
+  const [code, setCode] = useState("")
+
+  useEffect(() => {
+    if (canvasRef) {
+      const ctx = canvasRef.getContext("2d")!
+      setupCanvasCtx(ctx)
+      setCtx(ctx)
+    }
+  }, [canvasRef])
+
+  useEffect(() => {
+    for (const {
+      subpath,
+      fillColor,
+      strokeColor,
+      strokeWidth,
+    } of vectorizedState) {
+      displayVectorized(ctx!, subpath, fillColor, strokeColor, strokeWidth)
+    }
+  }, [vectorizedState])
 
   useEffect(() => {
     const loadAndRun = async () => {
+      const initCode = await (await fetch(CODE_PATH)).text()
+      setCode(initCode)
+
       const pyodide = (await window.loadPyodide()) as Pyodide
+      // pyodide.setDebug(true)
       await pyodide.loadPackage(["micropip"])
+      const response = await fetch("manim/adder.py")
+      if (!response.ok) {
+        throw new Error(
+          `Failed to load /py-src/adder.py: ${response.statusText}`
+        )
+      }
+      const adderPyContent = await response.text()
+      await pyodide.runPythonAsync(adderPyContent)
       setPyodide(pyodide)
-      await runPythonCode(code, pyodide)
+
+      await runPythonCode(initCode, pyodide)
     }
-    loadAndRun()
-  }, [])
+    if (ctx) loadAndRun()
+  }, [ctx])
 
   const runPythonCode = async (newCode: string, pyodide: Pyodide | null) => {
     if (!pyodide) {
@@ -43,10 +93,18 @@ const App = () => {
     }
     setCode(newCode)
     try {
-      await pyodide.runPythonAsync(newCode)
-      const fs = pyodide.FS
-      const data = fs.readFile("output.txt", { encoding: "utf8" })
-      setOutput(`File contents: ${data}`)
+      const resultJson = await pyodide.runPythonAsync(newCode)
+      const resultArray = JSON.parse(resultJson)
+      setOutput(resultJson)
+      setVectorizedState([
+        {
+          subpath: resultArray,
+          fillColor: testFillColor,
+          strokeColor: testStrokeColor,
+          strokeWidth: testStrokeWidth,
+        },
+      ])
+      ctx!.clearRect(0, 0, WIDTH, HEIGHT)
     } catch (error) {
       if (error instanceof Error) {
         setOutput(error.message)
@@ -55,35 +113,7 @@ const App = () => {
       }
     }
   }
-  const subpaths: Still_Subpath = [
-    [
-      [10, 10],
-      [100, 100],
-      [200, 100],
-      [300, 10],
-      [300, 10],
-      [400, -80],
-      [500, -80],
-      [600, 10],
-    ],
-    [
-      [50, 150],
-      [150, 250],
-      [250, 250],
-      [350, 150],
-      [350, 150],
-      [450, 50],
-      [550, 50],
-      [650, 150],
-      [650, 150],
-      [750, 250],
-      [850, 250],
-      [950, 150],
-    ],
-  ]
-  const strokeWidth = 2
-  const strokeColor: Still_RGBA = [1, 0, 0, 1]
-  const fillColor: Still_RGBA = [0, 1, 0, 0.5]
+
   return (
     <div style={{ display: "flex", height: "100vh" }}>
       <div style={{ width: "50%", height: "100%" }}>
@@ -104,11 +134,11 @@ const App = () => {
             gap: "3px",
           }}
         >
-          <CustomCanvas
-            subpaths={subpaths}
-            fillColor={fillColor}
-            strokeWidth={strokeWidth}
-            strokeColor={strokeColor}
+          <canvas
+            ref={setCanvasRef}
+            width={WIDTH}
+            height={HEIGHT}
+            style={{ width: "400px", height: "400px" }}
           />
           <div>Output:</div>
           <div>{output}</div>
