@@ -6,13 +6,16 @@ import { displayVectorized, setupCanvasCtx } from "./canvas/lib"
 
 declare global {
   interface Window {
-    loadPyodide: any
+    loadPyodide: Function
+    textMeasureCtx: CanvasRenderingContext2D
+    sendTextForMeasurement: Function
   }
 }
 
 interface Pyodide {
   loadPackage: (packages: string[] | string) => Promise<void>
   runPythonAsync: (code: string) => Promise<any>
+  runPython: (code: string) => any
   setDebug: Function
   FS: any
   globals: Record<string, any>
@@ -29,7 +32,9 @@ type VectorizedState = VectorizedObject[]
 const WIDTH = 800
 const HEIGHT = 800
 // const CODE_PATH = "demos/demo.py"
-const CODE_PATH = "demos/demo-messages.py"
+// const CODE_PATH = "demos/demo-messages.py"
+// const CODE_PATH = "demos/demo-numpy.py"
+const CODE_PATH = "demos/demo-canvas.py"
 
 const testStrokeWidth = 2
 const testStrokeColor: Still_RGBA = [1, 0, 0, 1]
@@ -52,6 +57,33 @@ const App = () => {
     }
   }, [canvasRef])
 
+  // test on text
+  // create a headless canvas for determining bbox sizes
+  useEffect(() => {
+    const textMeasurementCanvas = document.createElement("canvas")
+    textMeasurementCanvas.width = WIDTH
+    textMeasurementCanvas.height = HEIGHT
+    const textMeasurementCtx = textMeasurementCanvas.getContext("2d")!
+    textMeasurementCtx.font = "16px Arial"
+    window.textMeasureCtx = textMeasurementCtx
+
+    // window.sendTextForMeasurement = async (text: string) => {
+    window.sendTextForMeasurement = (text: string) => {
+      const ctx = window.textMeasureCtx
+      if (!ctx) {
+        console.error("Context for text measurement is not set up.")
+        return
+      }
+      ctx.font = "16px Arial"
+      const metrics = ctx.measureText(text)
+      const bbox = {
+        width: metrics.width,
+        height: metrics.fontBoundingBoxAscent,
+      }
+      return JSON.stringify(bbox)
+    }
+  }, [])
+
   useEffect(() => {
     for (const {
       subpath,
@@ -71,6 +103,9 @@ const App = () => {
       const pyodide = (await window.loadPyodide()) as Pyodide
       // pyodide.setDebug(true)
       await pyodide.loadPackage(["micropip"])
+      // await pyodide.loadPackage("numpy")
+      // create a custom manim wheel and load it here
+
       const response = await fetch("manim/adder.py")
       if (!response.ok) {
         throw new Error(
@@ -78,7 +113,8 @@ const App = () => {
         )
       }
       const adderPyContent = await response.text()
-      await pyodide.runPythonAsync(adderPyContent)
+      //   await pyodide.runPythonAsync(adderPyContent)
+      pyodide.runPython(adderPyContent)
       setPyodide(pyodide)
 
       await runPythonCode(initCode, pyodide)
@@ -93,17 +129,18 @@ const App = () => {
     }
     setCode(newCode)
     try {
-      const resultJson = await pyodide.runPythonAsync(newCode)
+      //   const resultJson = await pyodide.runPythonAsync(newCode)
+      const resultJson = pyodide.runPython(newCode)
       const resultArray = JSON.parse(resultJson)
       setOutput(resultJson)
-      setVectorizedState([
-        {
-          subpath: resultArray,
-          fillColor: testFillColor,
-          strokeColor: testStrokeColor,
-          strokeWidth: testStrokeWidth,
-        },
-      ])
+      //   setVectorizedState([
+      //     {
+      //       subpath: resultArray,
+      //       fillColor: testFillColor,
+      //       strokeColor: testStrokeColor,
+      //       strokeWidth: testStrokeWidth,
+      //     },
+      //   ])
       ctx!.clearRect(0, 0, WIDTH, HEIGHT)
     } catch (error) {
       if (error instanceof Error) {

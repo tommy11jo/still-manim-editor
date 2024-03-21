@@ -4,8 +4,8 @@ function definePath(
   ctx: CanvasRenderingContext2D,
   subpaths: Still_Subpath
 ): void {
+  ctx.beginPath()
   subpaths.forEach((subpath) => {
-    ctx.beginPath()
     for (let i = 0; i < subpath.length; i += 4) {
       const start = subpath[i]
       const control1 = subpath[i + 1]
@@ -25,8 +25,8 @@ function definePath(
         end[1]
       )
     }
-    ctx.closePath()
   })
+  // ctx.closePath()
 }
 function applyStroke(
   ctx: CanvasRenderingContext2D,
