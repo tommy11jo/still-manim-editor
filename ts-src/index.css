@@ -11,6 +11,14 @@ body {
   font-family: "computer-modern", sans-serif;
 }
 
+.action-text {
+  color: blue;
+  cursor: pointer;
+}
+
+.action-text:hover {
+  text-decoration: underline;
+}
 .split-layout {
   flex-direction: row;
 }
