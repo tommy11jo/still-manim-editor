@@ -38,12 +38,12 @@ module.exports = {
       }
 
       devServer.app.use(
-        "/manim",
-        express.static(path.join(__dirname, "py-src/manim-mod"))
+        "/demos",
+        express.static(path.join(__dirname, "smanim-demos"))
       )
       devServer.app.use(
-        "/demos",
-        express.static(path.join(__dirname, "py-src/demos"))
+        "/public",
+        express.static(path.join(__dirname, "public"))
       )
 
       return middlewares
@@ -56,7 +56,7 @@ module.exports = {
     }),
     new MiniCssExtractPlugin(),
     new CopyPlugin({
-      patterns: [{ from: "./py-src/manim-mod/", to: "manim/" }],
+      patterns: [{ from: "./public/", to: "/public" }],
     }),
   ],
 }

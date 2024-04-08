@@ -1,0 +1,22 @@
+body {
+  font-size: 20px;
+}
+
+@font-face {
+  font-family: "computer-modern";
+  src: url("/public/cmunrm.ttf") format("truetype");
+}
+
+.smanim {
+  font-family: "computer-modern", sans-serif;
+}
+
+.split-layout {
+  flex-direction: row;
+}
+
+@media (max-width: 75rem) {
+  .split-layout {
+    flex-direction: column;
+  }
+}
