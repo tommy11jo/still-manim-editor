@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react"
 import CodeMirror from "@uiw/react-codemirror"
 import { python } from "@codemirror/lang-python"
 import "./index.css"
+import { useSvgDownloader } from "./svgDownloader"
 declare global {
   interface Window {
     loadPyodide: Function
@@ -20,10 +21,9 @@ interface Pyodide {
   FS: any
   globals: Record<string, any>
 }
-const REFRESH_RATE = 200 // in ms
+const REFRESH_RATE = 200 // refresh every 200ms
 const CODE_SAVE_RATE = 3000 // save every 3s
 
-const CODE_PATH = "demos/demo_smanim_svg.py"
 const INIT_CODE = `from smanim import *
 c = Circle()
 canvas.add(c)
@@ -31,7 +31,7 @@ canvas.draw()
 `
 const DEFAULT_FS_DIR = "/home/pyodide/media"
 const SMANIM_WHEEL =
-  "https://test-files.pythonhosted.org/packages/85/e8/a5b3a65d845df2511a890d2cc6b4b8efd6f476c091dbbfdaedd99b19226f/still_manim-0.2.0-py3-none-any.whl"
+  "https://test-files.pythonhosted.org/packages/d8/2c/d7640c111cde129d5ade2952763d2957caa6f2a00072292a53ab8cadbb10/still_manim-0.2.1-py3-none-any.whl"
 
 function randId(): string {
   const length = 10
@@ -52,6 +52,8 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [loadTimeInSeconds, setLoadTimeInSeconds] = useState(0)
   const [canvasRef, setCanvasRef] = useState<HTMLDivElement | null>(null)
+  const width = useRef(100)
+  const height = useRef(100)
 
   const [pyodide, setPyodide] = useState<Pyodide | null>(null)
   const [output, setOutput] = useState("")
@@ -67,10 +69,10 @@ const App = () => {
   const [nameToBlob, setNameToBlob] = useState<Record<string, string>>({})
   const [blobToContent, setBlobToContent] = useState<Record<string, string>>({})
 
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const { downloadSvg, downloadSvgAsPng } = useSvgDownloader()
   // hard reset used for testing
-  // localStorage.setItem("filenames", JSON.stringify([]))
-  // localStorage.setItem("nameToBlob", JSON.stringify({}))
-  // localStorage.setItem("blobToContent", JSON.stringify({}))
+  // localStorage.clear()
   // keep local storage in sync with state vars for managinng filenames, blob ids, and file content
   useEffect(() => {
     const curFilenamesStr = localStorage.getItem("filenames")
@@ -186,17 +188,17 @@ const App = () => {
         if not name.startswith('__') and name not in sys.modules:
           del globals()[name]
     `)
-      pyodide.runPython(curCode)
+      const result = pyodide.runPython(curCode)
+      const bbox = JSON.parse(result)
+      width.current = bbox[2]
+      height.current = bbox[3]
+
       setOutput("")
-      try {
-        const svgContent = pyodide.FS.readFile(`${DEFAULT_FS_DIR}/test0.svg`, {
-          encoding: "utf8",
-        })
-        canvasRef!.innerHTML = svgContent
-      } catch (error) {
-        // captures first error when test0.svg doesn't exist yet
-        // i think this is causing unexpected behavior in the pyodide env though
-      }
+      const svgContent = pyodide.FS.readFile(`${DEFAULT_FS_DIR}/test0.svg`, {
+        encoding: "utf8",
+      })
+      // TODO: If I make shareable urls, I need to render svgs as image bitmap, not as interactive svg for security reasons
+      canvasRef!.innerHTML = svgContent
     } catch (error) {
       if (error instanceof Error) {
         const pattern = /(.*\^){8,}/g
@@ -249,6 +251,12 @@ const App = () => {
             ...blobToContent,
             [blobId]: code.current,
           }))
+        }
+        // ensure most recently used file is listed first
+        if (filenames[filenames.length - 1] !== title) {
+          const newFilenames = filenames.filter((fname) => fname !== title)
+          newFilenames.push(title)
+          setFilenames(newFilenames)
         }
         setCodeSaveInProgress(false)
       }, CODE_SAVE_RATE)
@@ -305,7 +313,38 @@ const App = () => {
     code.current = INIT_CODE
     runCurrentCode(code.current, pyodide)
   }
+  const deleteCurrentFile = () => {
+    setFilenames((filenames) => filenames.filter((fname) => fname !== title))
+    const blobId = nameToBlob[title]
+    setNameToBlob((current) => {
+      const copy = { ...current }
+      delete copy[title]
+      return copy
+    })
+    setBlobToContent((current) => {
+      const copy = { ...current }
+      delete current[blobId]
+      return copy
+    })
+    const freshTitle = nextAvailableFilename(filenames)
+    setTitle(freshTitle)
+    code.current = ""
+  }
 
+  const handleDownloadSvg = () => {
+    if (!pyodide) return
+    const svgContent = pyodide.FS.readFile(`${DEFAULT_FS_DIR}/test0.svg`, {
+      encoding: "utf8",
+    })
+    downloadSvg(title, svgContent)
+  }
+  const handleDownloadPng = () => {
+    if (!pyodide) return
+    const svgContent = pyodide.FS.readFile(`${DEFAULT_FS_DIR}/test0.svg`, {
+      encoding: "utf8",
+    })
+    downloadSvgAsPng(title, svgContent, width.current, height.current)
+  }
   return (
     <div
       style={{
@@ -351,13 +390,14 @@ const App = () => {
         </a>
       </div>
       <div
+        className="muted-text"
         style={{
           display: "flex",
           gap: "0.8rem",
-          color: "grey",
         }}
       >
-        <span>Previous Diagrams:</span>
+        <span className="muted-text">Previous Diagrams:</span>
+
         <ul
           style={{
             listStyleType: "none",
@@ -366,18 +406,21 @@ const App = () => {
             margin: 0,
           }}
         >
-          {filenames.map((fname, ind) => (
-            <li
-              key={ind}
-              className="action-text"
-              style={{ padding: 0, paddingRight: "0.5rem", margin: 0 }}
-              onClick={() => {
-                openExistingFile(fname)
-              }}
-            >
-              {fname}
-            </li>
-          ))}
+          {filenames
+            .slice()
+            .reverse()
+            .map((fname, ind) => (
+              <li
+                key={ind}
+                className="action-text"
+                style={{ padding: 0, paddingRight: "0.5rem", margin: 0 }}
+                onClick={() => {
+                  openExistingFile(fname)
+                }}
+              >
+                {fname}
+              </li>
+            ))}
         </ul>
       </div>
       <div
@@ -410,7 +453,7 @@ const App = () => {
               }}
             >
               <div>
-                <span style={{ color: "grey" }}>File Name: </span>
+                <span className="muted-text">File Name: </span>
                 <input
                   value={title}
                   onChange={updateTitle}
@@ -421,11 +464,47 @@ const App = () => {
                 />
               </div>
 
-              <span onClick={generateNewFile} className="action-text">
-                New File
-              </span>
+              <div>
+                <span
+                  onClick={generateNewFile}
+                  className="action-text"
+                  style={{ paddingRight: "2rem" }}
+                >
+                  New File
+                </span>
+                <span
+                  onClick={() => {
+                    setDeleteModalOpen(true)
+                  }}
+                  className="action-text"
+                >
+                  Delete File
+                </span>
+              </div>
             </div>
           </div>
+          {deleteModalOpen && (
+            <div className="modal-container">
+              <div className="modal-content">
+                <p>{`Are you sure you want to delete the file "${title}"?`}</p>
+                <button
+                  onClick={() => {
+                    deleteCurrentFile()
+                    setDeleteModalOpen(false)
+                  }}
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={() => {
+                    setDeleteModalOpen(false)
+                  }}
+                >
+                  No
+                </button>
+              </div>
+            </div>
+          )}
           <CodeMirror
             value={code.current}
             extensions={[python()]}
@@ -453,14 +532,35 @@ const App = () => {
           {canvasRef === null || (isLoading && <div>Loading...</div>)}
           {loadTimeInSeconds !== 0 && (
             <span
+              className="muted-text"
               style={{
                 display: "flex",
-                color: "grey",
                 justifyContent: "flex-end",
               }}
             >{`Pyodide Load Time: ${loadTimeInSeconds.toFixed(2)}s`}</span>
           )}
           <div ref={setCanvasRef}></div>
+          {!isLoading && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "0.3rem",
+              }}
+            >
+              <span className="action-text" onClick={handleDownloadSvg}>
+                Download SVG
+              </span>
+              <span className="action-text" onClick={handleDownloadPng}>
+                Download PNG
+              </span>
+              <span className="muted-text">
+                Note: Use canvas.draw(crop=False, ignore_bg=True) to crop to
+                size and ignore the background
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>
