@@ -3,6 +3,7 @@ import CodeMirror from "@uiw/react-codemirror"
 import { python } from "@codemirror/lang-python"
 import "./index.css"
 import { useSvgDownloader } from "./svgDownloader"
+import { DIJKSTRA_DEMO, LEMON_DEMO, SIN_AND_COS_DEMO } from "./demos"
 declare global {
   interface Window {
     loadPyodide: Function
@@ -21,17 +22,23 @@ interface Pyodide {
   FS: any
   globals: Record<string, any>
 }
-const REFRESH_RATE = 200 // refresh every 200ms
+const REFRESH_RATE = 300 // refresh every 300ms
 const CODE_SAVE_RATE = 3000 // save every 3s
 
 const INIT_CODE = `from smanim import *
 c = Circle()
 canvas.add(c)
-canvas.draw()
+canvas.draw() # this must be the last line of your program
 `
+
+const DEMO_MAP = {
+  lemon_logo: LEMON_DEMO,
+  sin_and_cos: SIN_AND_COS_DEMO,
+  dijkstras: DIJKSTRA_DEMO,
+}
 const DEFAULT_FS_DIR = "/home/pyodide/media"
 const SMANIM_WHEEL =
-  "https://test-files.pythonhosted.org/packages/d8/2c/d7640c111cde129d5ade2952763d2957caa6f2a00072292a53ab8cadbb10/still_manim-0.2.1-py3-none-any.whl"
+  "https://test-files.pythonhosted.org/packages/98/31/3bc0e170f29d863c35b51452c034aa06b6031fdc429acd6a399b938993fd/still_manim-0.2.6-py3-none-any.whl"
 
 function randId(): string {
   const length = 10
@@ -60,7 +67,8 @@ const App = () => {
   const [title, setTitle] = useState("")
   const code = useRef(INIT_CODE)
 
-  const [redrawInProgress, setRedrawInProgress] = useState(false)
+  const [redrawInitiated, setRedrawInitiated] = useState(false)
+  const redrawPending = useRef(false)
   const [codeSaveInProgress, setCodeSaveInProgress] = useState(false)
 
   // invariants: if name exists in filenames, then name exists as key in nameToBlob
@@ -80,44 +88,32 @@ const App = () => {
     const curBlobToContentStr = localStorage.getItem("blobToContent")
     let curTitle
     let curNameToBlob
-    if (curFilenamesStr === "undefined") {
+    if (!curFilenamesStr) {
       localStorage.setItem("filenames", JSON.stringify([]))
     } else {
-      if (curFilenamesStr) {
-        const filenamesList = JSON.parse(curFilenamesStr)
-        setFilenames(filenamesList)
-        if (filenamesList.length > 0) {
-          curTitle = filenamesList[filenamesList.length - 1]
-          setTitle(curTitle)
-        }
-      } else {
-        throw new Error("Current filenames is falsey in storage")
+      const filenamesList = JSON.parse(curFilenamesStr)
+      setFilenames(filenamesList)
+      if (filenamesList.length > 0) {
+        curTitle = filenamesList[filenamesList.length - 1]
+        setTitle(curTitle)
       }
     }
 
-    if (curNameToBlobStr === "undefined") {
+    if (!curNameToBlobStr) {
       localStorage.setItem("nameToBlob", JSON.stringify({}))
     } else {
-      if (curNameToBlobStr) {
-        curNameToBlob = JSON.parse(curNameToBlobStr)
-        setNameToBlob(curNameToBlob)
-      } else {
-        throw new Error("Current name to blob map is falsey in storage")
-      }
+      curNameToBlob = JSON.parse(curNameToBlobStr)
+      setNameToBlob(curNameToBlob)
     }
 
-    if (curBlobToContentStr === "undefined") {
+    if (!curBlobToContentStr) {
       localStorage.setItem("blobToContent", JSON.stringify({}))
     } else {
-      if (curBlobToContentStr) {
-        const curBlobToContent = JSON.parse(curBlobToContentStr)
-        setBlobToContent(curBlobToContent)
-        if (curTitle === undefined || curNameToBlob == undefined) return
-        const blobId = curNameToBlob[curTitle]
-        code.current = curBlobToContent[blobId]
-      } else {
-        throw new Error("Current blob to content map is falsey in storage")
-      }
+      const curBlobToContent = JSON.parse(curBlobToContentStr)
+      setBlobToContent(curBlobToContent)
+      if (curTitle === undefined || curNameToBlob == undefined) return
+      const blobId = curNameToBlob[curTitle]
+      code.current = curBlobToContent[blobId]
     }
     // invariant: title is guaranteed to be updated within 3 seconds of mounting, so the first save will use the updated title
   }, [])
@@ -189,6 +185,12 @@ const App = () => {
           del globals()[name]
     `)
       const result = pyodide.runPython(curCode)
+      if (!result) {
+        setOutput(
+          "Make sure that canvas.draw() is the last line of the program."
+        )
+        return
+      }
       const bbox = JSON.parse(result)
       width.current = bbox[2]
       height.current = bbox[3]
@@ -224,12 +226,21 @@ const App = () => {
 
   const triggerRedraw = () => {
     if (canvasRef === null) return
-    if (!redrawInProgress) {
-      setRedrawInProgress(true)
+    if (!redrawInitiated) {
+      setRedrawInitiated(true)
       setTimeout(() => {
+        console.log("draw")
         runCurrentCode(code.current, pyodide)
-        setRedrawInProgress(false)
+        if (redrawPending.current) {
+          redrawPending.current = false
+          setRedrawInitiated(false)
+          triggerRedraw()
+        } else {
+          setRedrawInitiated(false)
+        }
       }, REFRESH_RATE)
+    } else {
+      redrawPending.current = true
     }
   }
 
@@ -290,12 +301,15 @@ const App = () => {
     setNameToBlob((nameToBlob) => ({ ...nameToBlob, [newTitle]: oldContent }))
   }
 
-  const nextAvailableFilename = (filenamesList: string[]): string => {
+  const nextAvailableFilename = (
+    filenamesList: string[],
+    prefix: string = "test"
+  ): string => {
     let curIndex = 0
-    let newName = "test" + curIndex.toString()
+    let newName = prefix + curIndex.toString()
     while (filenamesList.includes(newName)) {
       curIndex += 1
-      newName = "test" + curIndex.toString()
+      newName = prefix + curIndex.toString()
     }
     return newName
   }
@@ -305,12 +319,16 @@ const App = () => {
     localStorage.setItem("blobToContent", JSON.stringify(blobToContent))
   }
 
-  const generateNewFile = () => {
+  const generateNewFile = (newTitle?: string, newCode?: string) => {
     saveCurrentOpenFile(title, code.current)
-    const newName = nextAvailableFilename(filenames)
-
-    setTitle(newName)
-    code.current = INIT_CODE
+    if (newTitle) {
+      const newName = nextAvailableFilename(filenames, newTitle)
+      setTitle(newName)
+    } else {
+      const newName = nextAvailableFilename(filenames)
+      setTitle(newName)
+    }
+    code.current = newCode ? newCode : INIT_CODE
     runCurrentCode(code.current, pyodide)
   }
   const deleteCurrentFile = () => {
@@ -326,8 +344,8 @@ const App = () => {
       delete current[blobId]
       return copy
     })
-    const freshTitle = nextAvailableFilename(filenames)
-    setTitle(freshTitle)
+    const newName = nextAvailableFilename(filenames)
+    setTitle(newName)
     code.current = ""
   }
 
@@ -413,7 +431,7 @@ const App = () => {
               <li
                 key={ind}
                 className="action-text"
-                style={{ padding: 0, paddingRight: "0.5rem", margin: 0 }}
+                style={{ padding: 0, paddingRight: "1rem", margin: 0 }}
                 onClick={() => {
                   openExistingFile(fname)
                 }}
@@ -427,10 +445,31 @@ const App = () => {
         style={{
           display: "flex",
           paddingBottom: "1rem",
-          color: "grey",
+          gap: "0.8rem",
         }}
       >
-        Example Diagrams:
+        <span className="muted-text">Example Diagrams:</span>
+        <ul
+          style={{
+            listStyleType: "none",
+            display: "flex",
+            padding: 0,
+            margin: 0,
+          }}
+        >
+          {Object.entries(DEMO_MAP).map(([fname, codeStr], ind) => (
+            <li
+              key={ind}
+              className="action-text"
+              style={{ padding: 0, paddingRight: "1rem", margin: 0 }}
+              onClick={() => {
+                generateNewFile(fname, codeStr)
+              }}
+            >
+              {fname}
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className="split-layout" style={{ display: "flex", width: "100%" }}>
@@ -466,7 +505,7 @@ const App = () => {
 
               <div>
                 <span
-                  onClick={generateNewFile}
+                  onClick={() => generateNewFile()}
                   className="action-text"
                   style={{ paddingRight: "2rem" }}
                 >
@@ -487,35 +526,53 @@ const App = () => {
             <div className="modal-container">
               <div className="modal-content">
                 <p>{`Are you sure you want to delete the file "${title}"?`}</p>
-                <button
-                  onClick={() => {
-                    deleteCurrentFile()
-                    setDeleteModalOpen(false)
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "1rem",
+                    justifyContent: "center",
                   }}
                 >
-                  Yes
-                </button>
-                <button
-                  onClick={() => {
-                    setDeleteModalOpen(false)
-                  }}
-                >
-                  No
-                </button>
+                  <span
+                    className="action-text"
+                    onClick={() => {
+                      deleteCurrentFile()
+                      setDeleteModalOpen(false)
+                    }}
+                  >
+                    Yes
+                  </span>
+                  <span
+                    className="action-text"
+                    onClick={() => {
+                      setDeleteModalOpen(false)
+                    }}
+                  >
+                    No
+                  </span>
+                </div>
               </div>
             </div>
           )}
-          <CodeMirror
-            value={code.current}
-            extensions={[python()]}
-            onChange={(value) => {
-              code.current = value
-              triggerRedraw()
-              triggerCodeSave()
+          <div
+            style={{
+              flex: "1 1 0%",
+              overflow: "auto",
+              maxWidth: "100%",
             }}
-            height={editorHeight}
-            style={{ fontSize: "16px" }}
-          />
+          >
+            <CodeMirror
+              value={code.current}
+              extensions={[python()]}
+              onChange={(value) => {
+                code.current = value
+                triggerRedraw()
+                triggerCodeSave()
+              }}
+              height={editorHeight}
+              style={{ fontSize: "16px" }}
+            />
+          </div>
           <div
             style={{
               height: "10rem",
