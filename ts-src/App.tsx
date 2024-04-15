@@ -4,6 +4,8 @@ import { python } from "@codemirror/lang-python"
 import "./index.css"
 import { useSvgDownloader } from "./svgDownloader"
 import { DIJKSTRA_DEMO, LEMON_DEMO, SIN_AND_COS_DEMO } from "./demos"
+import CodeEditor from "./Editor"
+import { Editor } from "@monaco-editor/react"
 declare global {
   interface Window {
     loadPyodide: Function
@@ -28,7 +30,7 @@ const CODE_SAVE_RATE = 3000 // save every 3s
 const INIT_CODE = `from smanim import *
 c = Circle()
 canvas.add(c)
-canvas.draw() # this must be the last line of your program
+canvas.draw()
 `
 
 const DEMO_MAP = {
@@ -38,7 +40,7 @@ const DEMO_MAP = {
 }
 const DEFAULT_FS_DIR = "/home/pyodide/media"
 const SMANIM_WHEEL =
-  "https://test-files.pythonhosted.org/packages/98/31/3bc0e170f29d863c35b51452c034aa06b6031fdc429acd6a399b938993fd/still_manim-0.2.6-py3-none-any.whl"
+  "https://test-files.pythonhosted.org/packages/69/d7/f1c9b729df52eea537fd73f020f9b56d3e5deace4f2b0a3e5898c20ea4e0/still_manim-0.2.7-py3-none-any.whl"
 
 function randId(): string {
   const length = 10
@@ -53,8 +55,7 @@ function randId(): string {
   }
   return result
 }
-// TODO: linting and language server
-// https://www.npmjs.com/package/@qualified/codemirror-workspace
+// TODO: Maybe use monaco editor for better code completion. See if command click on classes can work there.
 const App = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [loadTimeInSeconds, setLoadTimeInSeconds] = useState(0)
@@ -64,8 +65,10 @@ const App = () => {
 
   const [pyodide, setPyodide] = useState<Pyodide | null>(null)
   const [output, setOutput] = useState("")
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [errorLine, setErrorLine] = useState<number | null>(null)
   const [title, setTitle] = useState("")
-  const code = useRef(INIT_CODE)
+  const code = useRef<string>(INIT_CODE)
 
   const [redrawInitiated, setRedrawInitiated] = useState(false)
   const redrawPending = useRef(false)
@@ -153,18 +156,24 @@ const App = () => {
       setIsLoading(true)
       const startTime = performance.now()
 
-      const pyodide = (await window.loadPyodide()) as Pyodide
-      // pyodide.setDebug(true)
-      await pyodide.loadPackage(["micropip"])
-      const micropip = pyodide.pyimport("micropip")
-      await micropip.install(SMANIM_WHEEL)
-      pyodide.pyimport("smanim")
+      try {
+        // Known non-breaking bug with pyodide and monaco: https://github.com/microsoft/monaco-editor/issues/4384
+        // Ideally I'd like to show the code even if pyodide is still loading. So I'm waiting on this bug fix.
+        const loadedPyodide = (await window.loadPyodide()) as Pyodide
+        await loadedPyodide.loadPackage(["micropip"])
 
-      setPyodide(pyodide)
-      await runCurrentCode(code.current, pyodide)
-      setIsLoading(false)
-      const endTime = performance.now()
-      setLoadTimeInSeconds((endTime - startTime) / 1000)
+        const micropip = loadedPyodide.pyimport("micropip")
+        await micropip.install(SMANIM_WHEEL)
+        loadedPyodide.pyimport("smanim")
+        setPyodide(loadedPyodide)
+
+        await runCurrentCode(code.current, loadedPyodide)
+        setIsLoading(false)
+        const endTime = performance.now()
+        setLoadTimeInSeconds((endTime - startTime) / 1000)
+      } catch (error) {
+        console.error("Failed to load Pyodide and run init python code:", error)
+      }
     }
     if (canvasRef !== null) loadAndRun()
   }, [canvasRef])
@@ -178,6 +187,8 @@ const App = () => {
     try {
       // Clear global namespace except for built-in and imported modules
       // Note: "from smanim import *"" must now be included in the user's file to repeatedly bring the names into the current file's global namespace
+      // Typical drawings take between 0.05 and 0.20s to render
+      // const startTime = performance.now()
       pyodide.runPython(`
       import sys
       for name in list(globals()):
@@ -185,6 +196,9 @@ const App = () => {
           del globals()[name]
     `)
       const result = pyodide.runPython(curCode)
+      // const endTime = performance.now()
+      // console.log("python code run time:", (endTime - startTime) / 1000)
+
       if (!result) {
         setOutput(
           "Make sure that canvas.draw() is the last line of the program."
@@ -196,6 +210,8 @@ const App = () => {
       height.current = bbox[3]
 
       setOutput("")
+      setErrorLine(null)
+      setErrorMessage(null)
       const svgContent = pyodide.FS.readFile(`${DEFAULT_FS_DIR}/test0.svg`, {
         encoding: "utf8",
       })
@@ -205,6 +221,15 @@ const App = () => {
       if (error instanceof Error) {
         const pattern = /(.*\^){8,}/g
         const errorStr = error.message
+        const lineRegex = /File "<exec>", line (\d+)/ // Regular expression to find "line number"
+        const lineMatch = lineRegex.exec(errorStr)
+        if (lineMatch) {
+          setErrorLine(parseInt(lineMatch[1]))
+          setErrorMessage(errorStr)
+        } else {
+          console.error("Could not find line match in error message")
+        }
+
         let lastMatch
         let match
 
@@ -214,7 +239,11 @@ const App = () => {
 
         if (lastMatch !== undefined) {
           const endIndex = lastMatch.index + lastMatch[0].length
-          setOutput(errorStr.substring(endIndex))
+          let customOutput = ""
+          if (lineMatch && lineMatch.length === 2)
+            customOutput += "An error occured on line " + lineMatch[1] + ":\n"
+          customOutput += errorStr.substring(endIndex)
+          setOutput(customOutput)
         } else {
           setOutput(error.message)
         }
@@ -229,7 +258,6 @@ const App = () => {
     if (!redrawInitiated) {
       setRedrawInitiated(true)
       setTimeout(() => {
-        console.log("draw")
         runCurrentCode(code.current, pyodide)
         if (redrawPending.current) {
           redrawPending.current = false
@@ -561,19 +589,22 @@ const App = () => {
               maxWidth: "100%",
             }}
           >
-            <CodeMirror
-              value={code.current}
-              extensions={[python()]}
-              onChange={(value) => {
-                code.current = value
-                triggerRedraw()
-                triggerCodeSave()
-              }}
-              height={editorHeight}
-              style={{ fontSize: "16px" }}
-            />
+            {pyodide ? (
+              <CodeEditor
+                code={code}
+                title={title}
+                triggerRedraw={triggerRedraw}
+                triggerCodeSave={triggerCodeSave}
+                editorHeight={editorHeight}
+                errorMessage={errorMessage}
+                errorLine={errorLine}
+              />
+            ) : (
+              "Loading..."
+            )}
           </div>
           <div
+            className="whitespace-pre-wrap break-words"
             style={{
               height: "10rem",
               maxHeight: "10rem",
@@ -582,7 +613,7 @@ const App = () => {
             }}
           >
             <div>Console:</div>
-            <div>{output}</div>
+            <div style={{ whiteSpace: "pre-wrap" }}>{output}</div>
           </div>
         </div>
         <div style={{ flex: 1, backgroundColor: "#f5f5f5", padding: "0.3rem" }}>

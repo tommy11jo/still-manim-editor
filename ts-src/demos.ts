@@ -80,7 +80,7 @@ red_text = Text("Currently visiting").next_to(red_dot)
 desc.add(legend, blue_dot, blue_text, red_dot, red_text)
 canvas.add(desc)
 
-canvas.draw()
+canvas.draw(crop=True)
 `
 
 export const LEMON_DEMO = `from smanim import *
