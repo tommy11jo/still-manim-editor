@@ -10,8 +10,9 @@ type EditorProps = {
   errorMessage?: string | null
   errorLine?: number | null
 }
-// const PUBLIC_LSP_PATH =
-//   "../../node_modules/@typefox/pyright-browser/dist/pyright.worker.js"
+// Don't do LSP in browser yet. Seems highly janky.
+// Future: See npm pyright-browser. Or maybe don't do it in browser.
+const PUBLIC_LSP_PATH = "/public/pyright.worker.js"
 
 // Known Bug in Monaco when resizing in chrome or edge: https://github.com/microsoft/monaco-editor/issues/4311
 const CodeEditor: React.FC<EditorProps> = React.forwardRef(
@@ -47,16 +48,6 @@ const CodeEditor: React.FC<EditorProps> = React.forwardRef(
 
     useEffect(() => {
       if (monaco) {
-        // Setup Pyright LSP
-        //   workerRef.current = new Worker(PUBLIC_LSP_PATH)
-        //   workerRef.current.postMessage({
-        // type: "browser/boot",
-        // mode: "foreground",
-        //   })
-
-        // Additional message handling between Monaco and worker
-        // Example: workerRef.current.onmessage = ...
-
         monaco.editor.defineTheme("customTheme", {
           base: "vs",
           inherit: true,
