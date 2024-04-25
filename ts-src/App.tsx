@@ -1,11 +1,8 @@
 import React, { useEffect, useRef, useState } from "react"
-import CodeMirror from "@uiw/react-codemirror"
-import { python } from "@codemirror/lang-python"
 import "./index.css"
 import { useSvgDownloader } from "./svgDownloader"
 import { DIJKSTRA_DEMO, LEMON_DEMO, SIN_AND_COS_DEMO } from "./demos"
 import CodeEditor from "./Editor"
-import { Editor } from "@monaco-editor/react"
 declare global {
   interface Window {
     loadPyodide: Function
@@ -16,8 +13,7 @@ declare global {
 
 interface Pyodide {
   loadPackage: (packages: string[] | string) => Promise<void>
-  runPythonAsync: (code: string) => Promise<any>
-  runPython: (code: string) => any
+  runPython: (code: string, options?: Record<string, any>) => any
   unpackArchive: Function
   pyimport: Function
   setDebug: Function
@@ -40,7 +36,7 @@ const DEMO_MAP = {
 }
 const DEFAULT_FS_DIR = "/home/pyodide/media"
 const SMANIM_WHEEL =
-  "https://test-files.pythonhosted.org/packages/69/d7/f1c9b729df52eea537fd73f020f9b56d3e5deace4f2b0a3e5898c20ea4e0/still_manim-0.2.7-py3-none-any.whl"
+  "https://test-files.pythonhosted.org/packages/5c/34/02b47088db778aa7673271dfabb60d586da2de74c72e439b73a34681a6b0/still_manim-0.5.5-py3-none-any.whl"
 
 function randId(): string {
   const length = 10
@@ -55,7 +51,6 @@ function randId(): string {
   }
   return result
 }
-// TODO: Maybe use monaco editor for better code completion. See if command click on classes can work there.
 const App = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [loadTimeInSeconds, setLoadTimeInSeconds] = useState(0)
@@ -187,17 +182,40 @@ const App = () => {
     try {
       // Clear global namespace except for built-in and imported modules
       // Note: "from smanim import *"" must now be included in the user's file to repeatedly bring the names into the current file's global namespace
-      // Typical drawings take between 0.05 and 0.20s to render
-      // const startTime = performance.now()
+      // Typical drawings take between 0.05 and 0.30s to render
+      const startTime = performance.now()
+      // also resets bidirectional global state
       pyodide.runPython(`
-      import sys
-      for name in list(globals()):
-        if not name.startswith('__') and name not in sys.modules:
-          del globals()[name]
+import sys
+from smanim.bidirectional.bidirectional import reset_bidirectional
+reset_bidirectional()
+for name in list(globals()):
+    if not name.startswith('__') and name not in sys.modules:
+        print(name)
+        del globals()[name]
     `)
+      // since the __file__ var and the file lines are not accessible when running with pyodide, we need to manually set them
+      // assumes the python code doesn't use triple quotes anywhere (yikes)
+      // see that <exec> is the correct name by running:
+      // print('name is', inspect.currentframe().f_code.co_filename)
+      pyodide.runPython(`
+from smanim.bidirectional.custom_linecache import CustomLineCache
+CustomLineCache.cache("<exec>", """${curCode}""")`)
+
+      // setup the tracing of var assignments
+      // https://stackoverflow.com/questions/55998616/how-to-trace-code-run-in-global-scope-using-sys-settrace
+      pyodide.runPython(`
+from smanim.bidirectional.bidirectional import global_trace_assignments, trace_assignments
+sys._getframe().f_trace = global_trace_assignments
+sys.settrace(trace_assignments)`)
+
       const result = pyodide.runPython(curCode)
-      // const endTime = performance.now()
-      // console.log("python code run time:", (endTime - startTime) / 1000)
+      pyodide.runPython(`
+sys._getframe().f_trace = None
+sys.settrace(None)
+`)
+      const endTime = performance.now()
+      console.log("python code run time:", (endTime - startTime) / 1000)
 
       if (!result) {
         setOutput(
