@@ -6,6 +6,7 @@ type EditorProps = {
   title: string
   triggerRedraw: Function
   triggerCodeSave: Function
+  isAutoRefreshing: boolean
   editorHeight: string
   errorMessage?: string | null
   errorLine?: number | null
@@ -22,6 +23,7 @@ const CodeEditor: React.FC<EditorProps> = React.forwardRef(
       title,
       triggerRedraw,
       triggerCodeSave,
+      isAutoRefreshing,
       editorHeight,
       errorMessage,
       errorLine,
@@ -104,8 +106,10 @@ const CodeEditor: React.FC<EditorProps> = React.forwardRef(
             return
           }
           code.current = value ?? ""
-          triggerRedraw()
-          triggerCodeSave()
+          if (isAutoRefreshing) {
+            triggerRedraw()
+            triggerCodeSave()
+          }
         }}
         onMount={handleEditorDidMount}
         options={{

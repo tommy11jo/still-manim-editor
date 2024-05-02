@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import "./index.css"
 import { useSvgDownloader } from "./svgDownloader"
 import { DIJKSTRA_DEMO, LEMON_DEMO, SIN_AND_COS_DEMO } from "./demos"
@@ -36,7 +36,7 @@ const DEMO_MAP = {
 }
 const DEFAULT_FS_DIR = "/home/pyodide/media"
 const SMANIM_WHEEL =
-  "https://test-files.pythonhosted.org/packages/5c/34/02b47088db778aa7673271dfabb60d586da2de74c72e439b73a34681a6b0/still_manim-0.5.5-py3-none-any.whl"
+  "https://test-files.pythonhosted.org/packages/94/df/53a4cb8f9b3c355ddb3e1d405fc94b933fa4c01a82b3cfe057123b35c170/still_manim-0.5.6-py3-none-any.whl"
 
 function randId(): string {
   const length = 10
@@ -63,6 +63,7 @@ const App = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [errorLine, setErrorLine] = useState<number | null>(null)
   const [title, setTitle] = useState("")
+  const [isAutoRefreshing, setIsAutoRefreshing] = useState(false)
   const code = useRef<string>(INIT_CODE)
 
   const [redrawInitiated, setRedrawInitiated] = useState(false)
@@ -183,7 +184,7 @@ const App = () => {
       // Clear global namespace except for built-in and imported modules
       // Note: "from smanim import *"" must now be included in the user's file to repeatedly bring the names into the current file's global namespace
       // Typical drawings take between 0.05 and 0.30s to render
-      const startTime = performance.now()
+      // const startTime = performance.now()
       // also resets bidirectional global state
       pyodide.runPython(`
 import sys
@@ -214,8 +215,8 @@ sys.settrace(trace_assignments)`)
 sys._getframe().f_trace = None
 sys.settrace(None)
 `)
-      const endTime = performance.now()
-      console.log("python code run time:", (endTime - startTime) / 1000)
+      // const endTime = performance.now()
+      // console.log("python code run time:", (endTime - startTime) / 1000)
 
       if (!result) {
         setOutput(
@@ -271,7 +272,7 @@ sys.settrace(None)
     }
   }
 
-  const triggerRedraw = () => {
+  const triggerRedraw = useCallback(() => {
     if (canvasRef === null) return
     if (!redrawInitiated) {
       setRedrawInitiated(true)
@@ -288,11 +289,15 @@ sys.settrace(None)
     } else {
       redrawPending.current = true
     }
-  }
+  }, [redrawInitiated, pyodide, canvasRef])
 
-  const triggerCodeSave = () => {
+  const triggerCodeSave = useCallback(() => {
     if (!codeSaveInProgress) {
       setCodeSaveInProgress(true)
+      if (title === "") {
+        console.error("Cannot save a file with an empty string title")
+        return
+      }
       setTimeout(() => {
         if (!filenames.includes(title)) {
           const newBlobId = randId()
@@ -318,7 +323,7 @@ sys.settrace(None)
         setCodeSaveInProgress(false)
       }, CODE_SAVE_RATE)
     }
-  }
+  }, [title, codeSaveInProgress, filenames])
 
   const openExistingFile = (title: string) => {
     if (!pyodide) return
@@ -409,6 +414,30 @@ sys.settrace(None)
     })
     downloadSvgAsPng(title, svgContent, width.current, height.current)
   }
+
+  useEffect(() => {
+    const handleSaveShortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "r") {
+        event.preventDefault()
+        triggerRedraw()
+        triggerCodeSave()
+      }
+    }
+
+    window.addEventListener("keydown", handleSaveShortcut)
+
+    return () => {
+      window.removeEventListener("keydown", handleSaveShortcut)
+    }
+    // add all vars from triggerRedraw() and triggerCodeSave() and their descendents to deps array
+  }, [
+    title,
+    codeSaveInProgress,
+    filenames,
+    redrawInitiated,
+    pyodide,
+    canvasRef,
+  ])
   return (
     <div
       style={{
@@ -517,6 +546,19 @@ sys.settrace(None)
           ))}
         </ul>
       </div>
+      <div className="flex items-start">
+        <input
+          type="checkbox"
+          checked={isAutoRefreshing}
+          onChange={() => setIsAutoRefreshing(!isAutoRefreshing)}
+        />
+        <label>Auto-Refresh</label>
+        <div>
+          <span className="muted-text">
+            Or, press Cmd + R (mac) or Control + R (windows) to save and run{" "}
+          </span>
+        </div>
+      </div>
 
       <div className="split-layout" style={{ display: "flex", width: "100%" }}>
         <div style={{ flex: 1, height: "100%" }}>
@@ -613,6 +655,7 @@ sys.settrace(None)
                 title={title}
                 triggerRedraw={triggerRedraw}
                 triggerCodeSave={triggerCodeSave}
+                isAutoRefreshing={isAutoRefreshing}
                 editorHeight={editorHeight}
                 errorMessage={errorMessage}
                 errorLine={errorLine}

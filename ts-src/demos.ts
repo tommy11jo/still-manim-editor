@@ -28,13 +28,13 @@ vertices, edges, edge_labels = WeightedGraph.from_adjacency_list(graph)
 graph = WeightedGraph(
   vertices, 
   edges,
+  include_vertex_labels=True,
   edge_labels=edge_labels,
   edge_type=Arrow,
   vertex_config={"fill_color": GREEN, "fill_opacity": 0.4, "radius": 0.2},
   edge_config={"opacity": 0.5},
   layout_config={"seed": 2}
 )
-graph.add_vertex_labels()
 graph.scale(1.5)
 canvas.add(graph)
 
