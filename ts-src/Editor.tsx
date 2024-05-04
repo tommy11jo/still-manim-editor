@@ -59,13 +59,27 @@ const CodeEditor: React.FC<EditorProps> = React.forwardRef(
           },
         })
         monaco.editor.setTheme("customTheme")
+
+        // Note that I have another listener for this key command attached to the window, but it gets overridden by monaco so I need this listener too
+        // TODO: Why is this other listener still not working?
+        const executeCode = {
+          id: "run-code",
+          label: "Run Code",
+          contextMenuOrder: 2,
+          contextMenuGroupId: "1_modification",
+          keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+          run: () => {
+            triggerRedraw()
+            triggerCodeSave()
+          },
+        }
+        monaco.editor.addEditorAction(executeCode)
       }
 
       return () => {
-        // Clean up the worker when the component is unmounted
         workerRef.current?.terminate()
       }
-    }, [monaco])
+    }, [monaco, triggerRedraw, triggerCodeSave])
 
     useEffect(() => {
       if (!monaco || !errorMessage || !errorLine) return
