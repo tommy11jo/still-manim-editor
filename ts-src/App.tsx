@@ -39,7 +39,7 @@ const DEMO_MAP = {
 }
 const DEFAULT_FS_DIR = "/home/pyodide/media"
 const SMANIM_WHEEL =
-  "https://test-files.pythonhosted.org/packages/b3/7d/784d8339e78093601438192e8f1331bd0f319b6f7222bd55b58962312bf7/still_manim-0.7.5-py3-none-any.whl"
+  "https://test-files.pythonhosted.org/packages/bd/b2/e0c6163d5f689e37a77947d95b7fb42a394a9edeed0900961587510f235b/still_manim-0.7.6-py3-none-any.whl"
 
 function randId(): string {
   const length = 10
@@ -58,7 +58,7 @@ const App = () => {
   const [isBidirectional, setIsBidirectional] = useState(true)
   const {
     attachSelectionListeners,
-    selectedMobjectId,
+    selectedMobjectIds,
     needsCanvasClickListener,
   } = useSelection()
 
@@ -238,7 +238,7 @@ sys.settrace(None)
       }
       const jsonResult = JSON.parse(result)
       const bbox = jsonResult["bbox"]
-      const metadata: MobjectMetadataMap = jsonResult["metadata"] // contains all mobject bbox metadata
+      const metadata: MobjectMetadataMap = jsonResult["metadata"]
       width.current = bbox[2]
       height.current = bbox[3]
 
@@ -295,7 +295,7 @@ sys.settrace(None)
     if (!isAutoRefreshing) {
       const metadata = runCurrentCode(code.current, pyodide)
       if (isBidirectional) {
-        selectedMobjectId.current = null
+        selectedMobjectIds.current = []
         attachSelectionListeners(metadata)
       }
     } else {
@@ -304,7 +304,7 @@ sys.settrace(None)
         setTimeout(() => {
           const metadata = runCurrentCode(code.current, pyodide)
           if (isBidirectional) {
-            selectedMobjectId.current = null
+            selectedMobjectIds.current = []
             attachSelectionListeners(metadata)
           }
           redrawInProgress.current = false
@@ -362,7 +362,7 @@ sys.settrace(None)
     code.current = blobToContent[blobId]
     const metadata = runCurrentCode(code.current, pyodide)
     if (isBidirectional) {
-      selectedMobjectId.current = null
+      selectedMobjectIds.current = []
       needsCanvasClickListener.current = true
       attachSelectionListeners(metadata)
     }
@@ -417,7 +417,7 @@ sys.settrace(None)
     code.current = newCode ? newCode : INIT_CODE
     const metadata = runCurrentCode(code.current, pyodide)
     if (isBidirectional) {
-      selectedMobjectId.current = null
+      selectedMobjectIds.current = []
       needsCanvasClickListener.current = true
       attachSelectionListeners(metadata)
     }
@@ -738,8 +738,17 @@ sys.settrace(None)
                 Download PNG
               </span>
               <span className="muted-text">
-                Note: Use canvas.draw(crop=False, ignore_bg=True) to crop to
-                size and ignore the background
+                Notes:
+                <ul>
+                  <li>
+                    Use canvas.draw(crop=False, ignore_bg=True) to crop to size
+                    and ignore the background
+                  </li>
+                  <li>
+                    Hold Command + Click to select multiple mobjects at once on
+                    mac. Or Ctrl + Click for windows.
+                  </li>
+                </ul>
               </span>
             </div>
           )}
