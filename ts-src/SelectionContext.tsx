@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useRef } from "react"
+import React, { createContext, useContext, useRef, useState } from "react"
 import { MobjectMetadataMap } from "./types"
 
 interface SelectionContextType {
   attachSelectionListeners: (metadata: any) => void
   selectedMobjectIds: React.MutableRefObject<string[]>
   needsCanvasClickListener: React.MutableRefObject<boolean>
+  lineNumbersToHighlight: number[]
 }
 
 const SelectionContext = createContext<SelectionContextType | undefined>(
@@ -25,6 +26,9 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
   const selectedMobjectIds = useRef<string[]>([])
   const needsCanvasClickListener = useRef<boolean>(true)
   const commandClickSequenceStarted = useRef<boolean>(true)
+  const [lineNumbersToHighlight, setLineNumbersToHighlight] = useState<
+    number[]
+  >([])
 
   const setupCanvasClickListener = (metadataMap: MobjectMetadataMap) => {
     const svgCanvas = document.getElementById(
@@ -42,6 +46,7 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
           document.querySelectorAll(".smanim-highlights")
         highlightedElements.forEach((element) => element.remove())
         selectedMobjectIds.current = []
+        setLineNumbersToHighlight([])
       }
     })
   }
@@ -93,7 +98,6 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
       label.textContent = mobjectClassnames[i]
       group.appendChild(label)
     }
-    // Maybe TODO: ordering could be improved here
     svgCanvas.appendChild(group)
   }
 
@@ -105,7 +109,7 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
       return
     }
     const resetLevelAndUp = (parentId: string) => {
-      /* sets the default hoverability and clickability */
+      // sets the default hoverability and clickability
       if (parentId === "none") return
       // reset all direct children (except bg_rect) of the canvas root node to be clickable and hoverable, and the rest not to be
       for (const childId of mobjectMetadatas[parentId].children) {
@@ -156,7 +160,7 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
 
         removeChildInteractivity(prevSelMobjectId)
       } else {
-        // newly selected mobject is in a different branch of the canvas tree
+        // if the newly selected mobject is in a different branch of the canvas tree
         resetLevelAndUp(prevSelMobjectData.parent)
       }
     })
@@ -187,7 +191,6 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
       }
 
       element.addEventListener("click", (event) => {
-        console.log("cur el meta", metadataMap[mobjectId])
         if (event.metaKey || event.ctrlKey) {
           if (!commandClickSequenceStarted.current) {
             resetFromPreviousSelection(mobjectId, metadataMap)
@@ -235,6 +238,14 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
           element.classList.add("clickable")
           element.style.pointerEvents = "all"
         }
+
+        const lineNumbers: number[] = []
+        for (const curId of selectedMobjectIds.current) {
+          const curLineno = metadataMap[curId]["lineno"]
+          if (curLineno !== null && curLineno !== -1)
+            lineNumbers.push(curLineno)
+        }
+        setLineNumbersToHighlight(lineNumbers)
       })
     })
   }
@@ -243,8 +254,9 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
     <SelectionContext.Provider
       value={{
         attachSelectionListeners,
-        selectedMobjectIds: selectedMobjectIds,
+        selectedMobjectIds,
         needsCanvasClickListener,
+        lineNumbersToHighlight,
       }}
     >
       {children}

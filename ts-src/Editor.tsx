@@ -1,5 +1,5 @@
 import Editor, { useMonaco } from "@monaco-editor/react"
-import React, { useEffect, useRef } from "react"
+import React, { useEffect, useRef, useState } from "react"
 
 type EditorProps = {
   code: React.MutableRefObject<string>
@@ -10,10 +10,8 @@ type EditorProps = {
   editorHeight: string
   errorMessage?: string | null
   errorLine?: number | null
+  lineNumbersToHighlight: number[]
 }
-// Don't do LSP in browser yet. Seems highly janky.
-// Future: See npm pyright-browser. Or maybe don't do it in browser.
-const PUBLIC_LSP_PATH = "/public/pyright.worker.js"
 
 // Known Bug in Monaco when resizing in chrome or edge: https://github.com/microsoft/monaco-editor/issues/4311
 const CodeEditor: React.FC<EditorProps> = React.forwardRef(
@@ -27,14 +25,17 @@ const CodeEditor: React.FC<EditorProps> = React.forwardRef(
       editorHeight,
       errorMessage,
       errorLine,
+      lineNumbersToHighlight,
     },
     ref
   ) => {
     const monaco = useMonaco()
     const editorRef = useRef<any>(null)
+    const [decorations, setDecorations] = useState<string[]>([])
 
     const handleEditorDidMount = (editor: any) => {
       editorRef.current = editor
+      updateDecorations()
     }
 
     const isSwitchingFiles = useRef(false)
@@ -109,6 +110,34 @@ const CodeEditor: React.FC<EditorProps> = React.forwardRef(
       }
     }, [monaco, errorMessage, errorLine])
 
+    useEffect(() => {
+      updateDecorations()
+      return () => {
+        if (editorRef.current) {
+          editorRef.current.deltaDecorations(decorations, []) // Clean up when the component unmounts
+        }
+      }
+    }, [monaco, lineNumbersToHighlight])
+    const updateDecorations = () => {
+      if (editorRef.current && monaco) {
+        const newDecorations = lineNumbersToHighlight.map((lineNumber) => ({
+          range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+          options: {
+            isWholeLine: true,
+            className: "line-highlight",
+            overviewRuler: {
+              color: "rgba(135, 206, 235, 0.5)",
+              position: monaco.editor.OverviewRulerLane.Full,
+            },
+          },
+        }))
+        const ids = editorRef.current.deltaDecorations(
+          decorations,
+          newDecorations
+        )
+        setDecorations(ids)
+      }
+    }
     return (
       <Editor
         height={editorHeight}

@@ -1,10 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import "./index.css"
-import { useSvgDownloader } from "./svgDownloader"
-import { DIJKSTRA_DEMO, LEMON_DEMO, SIN_AND_COS_DEMO } from "./demos"
-import CodeEditor from "./Editor"
+
 import { MobjectMetadataMap } from "./types"
+import { DIJKSTRA_DEMO, LEMON_DEMO, SIN_AND_COS_DEMO } from "./demos"
+
+import { useSvgDownloader } from "./svgDownloader"
 import { useSelection } from "./SelectionContext"
+
+import CodeEditor from "./Editor"
+
 declare global {
   interface Window {
     loadPyodide: Function
@@ -39,7 +43,7 @@ const DEMO_MAP = {
 }
 const DEFAULT_FS_DIR = "/home/pyodide/media"
 const SMANIM_WHEEL =
-  "https://test-files.pythonhosted.org/packages/bd/b2/e0c6163d5f689e37a77947d95b7fb42a394a9edeed0900961587510f235b/still_manim-0.7.6-py3-none-any.whl"
+  "https://test-files.pythonhosted.org/packages/58/63/0d38e692c0cd33eebc6ba507c80cdf5302d048c84abb45a3f517d018d9a0/still_manim-0.7.8-py3-none-any.whl"
 
 function randId(): string {
   const length = 10
@@ -60,6 +64,7 @@ const App = () => {
     attachSelectionListeners,
     selectedMobjectIds,
     needsCanvasClickListener,
+    lineNumbersToHighlight,
   } = useSelection()
 
   const [isLoading, setIsLoading] = useState(false)
@@ -470,6 +475,7 @@ sys.settrace(None)
       window.removeEventListener("keydown", handleSaveShortcut)
     }
   }, [triggerRedraw, triggerCodeSave])
+
   return (
     <div
       style={{
@@ -692,6 +698,7 @@ sys.settrace(None)
                 editorHeight={editorHeight}
                 errorMessage={errorMessage}
                 errorLine={errorLine}
+                lineNumbersToHighlight={lineNumbersToHighlight}
               />
             ) : (
               "Loading..."
@@ -710,8 +717,10 @@ sys.settrace(None)
             <div style={{ whiteSpace: "pre-wrap" }}>{output}</div>
           </div>
         </div>
+
         <div style={{ flex: 1, backgroundColor: "#f5f5f5", padding: "0.3rem" }}>
           {canvasRef === null || (isLoading && <div>Loading...</div>)}
+
           {loadTimeInSeconds !== 0 && (
             <span
               className="muted-text"

@@ -65,3 +65,7 @@ body {
   stroke: blue;
   stroke-width: 2px;
 }
+
+.line-highlight {
+  background-color: rgba(135, 206, 235, 0.5);
+}

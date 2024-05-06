@@ -9,6 +9,7 @@ export interface MobjectMetadata {
   children: string[]
   classname: string
   path: string
+  lineno: number
 }
 
 export type MobjectMetadataMap = Record<string, MobjectMetadata>
