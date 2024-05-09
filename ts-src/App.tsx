@@ -2,7 +2,12 @@ import React, { useCallback, useEffect, useRef, useState } from "react"
 import "./index.css"
 
 import { MobjectMetadataMap } from "./types"
-import { DIJKSTRA_DEMO, LEMON_DEMO, SIN_AND_COS_DEMO } from "./demos"
+import {
+  DIJKSTRA_DEMO,
+  IDRAW_SELECTION_DEMO,
+  LEMON_DEMO,
+  SIN_AND_COS_DEMO,
+} from "./demos"
 
 import { useSvgDownloader } from "./svgDownloader"
 import { useSelection } from "./SelectionContext"
@@ -40,10 +45,11 @@ const DEMO_MAP = {
   lemon_logo: LEMON_DEMO,
   sin_and_cos: SIN_AND_COS_DEMO,
   dijkstras: DIJKSTRA_DEMO,
+  selection_demo: IDRAW_SELECTION_DEMO,
 }
 const DEFAULT_FS_DIR = "/home/pyodide/media"
 const SMANIM_WHEEL =
-  "https://test-files.pythonhosted.org/packages/58/63/0d38e692c0cd33eebc6ba507c80cdf5302d048c84abb45a3f517d018d9a0/still_manim-0.7.8-py3-none-any.whl"
+  "https://test-files.pythonhosted.org/packages/40/63/173125866131fff0487552c455b4662c2c676d2841b11d2c9759b2a73fd1/still_manim-0.9.2-py3-none-any.whl"
 
 function randId(): string {
   const length = 10
@@ -59,16 +65,17 @@ function randId(): string {
   return result
 }
 const App = () => {
+  // for complex graphics, using bidirectional editing with settrace is a 4x slowdown
   const [isBidirectional, setIsBidirectional] = useState(true)
   const {
     attachSelectionListeners,
-    selectedMobjectIds,
     needsCanvasClickListener,
     lineNumbersToHighlight,
   } = useSelection()
 
   const [isLoading, setIsLoading] = useState(false)
-  const [loadTimeInSeconds, setLoadTimeInSeconds] = useState(0)
+  const [pyodideLoadTimeInSeconds, setPyodideLoadTimeInSeconds] = useState(0)
+  const [graphicRunTimeInSeconds, setGraphicRunTimeInSeconds] = useState(0)
   const [canvasRef, setCanvasRef] = useState<HTMLDivElement | null>(null)
   const width = useRef(100)
   const height = useRef(100)
@@ -80,6 +87,7 @@ const App = () => {
   const [title, setTitle] = useState("")
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false)
   const code = useRef<string>(INIT_CODE)
+  const [codeSaved, setCodeSaved] = useState(true)
 
   const redrawInProgress = useRef(false)
   const [codeSaveInProgress, setCodeSaveInProgress] = useState(false)
@@ -179,16 +187,17 @@ const App = () => {
         setPyodide(loadedPyodide)
 
         const metadata = runCurrentCode(code.current, loadedPyodide)
-        attachSelectionListeners(metadata)
+        if (isBidirectional) attachSelectionListeners(metadata)
+
         setIsLoading(false)
         const endTime = performance.now()
-        setLoadTimeInSeconds((endTime - startTime) / 1000)
+        setPyodideLoadTimeInSeconds((endTime - startTime) / 1000)
       } catch (error) {
         console.error("Failed to load Pyodide and run init python code:", error)
       }
     }
-    if (canvasRef !== null) loadAndRun()
-  }, [canvasRef])
+    if (canvasRef !== null && !pyodide) loadAndRun()
+  }, [canvasRef, isBidirectional, pyodide])
 
   const runCurrentCode = (
     curCode: string,
@@ -199,15 +208,21 @@ const App = () => {
       return {}
     }
     if (!curCode) return {}
+    const startTime = performance.now()
     try {
       // Clear global namespace except for built-in and imported modules
       // Note: "from smanim import *"" must now be included in the user's file to repeatedly bring the names into the current file's global namespace
       // Typical drawings take between 0.05 and 0.30s to render
       // also resets bidirectional global state
+      // must reset CONFIG and canvas manually here
       pyodide.runPython(`
 import sys
 from smanim.bidirectional.bidirectional import reset_bidirectional
+from smanim.config import CONFIG 
+from smanim.canvas import Canvas
 reset_bidirectional()
+CONFIG.reset_config()
+canvas = Canvas(CONFIG)
 for name in list(globals()):
     if not name.startswith('__') and name not in sys.modules:
         del globals()[name]
@@ -225,16 +240,24 @@ CustomLineCache.cache("<exec>", decoded_code)`)
 
       // setup the tracing of var assignments
       // https://stackoverflow.com/questions/55998616/how-to-trace-code-run-in-global-scope-using-sys-settrace
-      pyodide.runPython(`
+      let result: string
+      if (isBidirectional) {
+        pyodide.runPython(`
 from smanim.bidirectional.bidirectional import global_trace_assignments, trace_assignments
 sys._getframe().f_trace = global_trace_assignments
 sys.settrace(trace_assignments)`)
 
-      const result = pyodide.runPython(curCode)
-      pyodide.runPython(`
+        result = pyodide.runPython(curCode)
+        pyodide.runPython(`
 sys._getframe().f_trace = None
 sys.settrace(None)
 `)
+      } else {
+        result = pyodide.runPython(curCode)
+      }
+
+      const endTime = performance.now()
+      setGraphicRunTimeInSeconds((endTime - startTime) / 1000)
       if (!result) {
         setOutput(
           "Make sure that canvas.draw() is the last line of the program."
@@ -300,7 +323,6 @@ sys.settrace(None)
     if (!isAutoRefreshing) {
       const metadata = runCurrentCode(code.current, pyodide)
       if (isBidirectional) {
-        selectedMobjectIds.current = []
         attachSelectionListeners(metadata)
       }
     } else {
@@ -309,7 +331,6 @@ sys.settrace(None)
         setTimeout(() => {
           const metadata = runCurrentCode(code.current, pyodide)
           if (isBidirectional) {
-            selectedMobjectIds.current = []
             attachSelectionListeners(metadata)
           }
           redrawInProgress.current = false
@@ -355,23 +376,27 @@ sys.settrace(None)
           newFilenames.push(title)
           setFilenames(newFilenames)
         }
+        setCodeSaved(true)
         setCodeSaveInProgress(false)
       }, CODE_SAVE_RATE)
     }
   }, [title, codeSaveInProgress, filenames])
 
-  const openExistingFile = (title: string) => {
-    if (!pyodide) return
-    setTitle(title)
-    const blobId = nameToBlob[title]
-    code.current = blobToContent[blobId]
-    const metadata = runCurrentCode(code.current, pyodide)
-    if (isBidirectional) {
-      selectedMobjectIds.current = []
-      needsCanvasClickListener.current = true
-      attachSelectionListeners(metadata)
-    }
-  }
+  const openExistingFile = useCallback(
+    (title: string) => {
+      if (!pyodide) return
+      setTitle(title)
+      setCodeSaved(true)
+      const blobId = nameToBlob[title]
+      code.current = blobToContent[blobId]
+      const metadata = runCurrentCode(code.current, pyodide)
+      if (isBidirectional) {
+        needsCanvasClickListener.current = true
+        attachSelectionListeners(metadata)
+      }
+    },
+    [nameToBlob, blobToContent, attachSelectionListeners, pyodide]
+  )
 
   const handleKeyDownTitle = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
@@ -422,7 +447,6 @@ sys.settrace(None)
     code.current = newCode ? newCode : INIT_CODE
     const metadata = runCurrentCode(code.current, pyodide)
     if (isBidirectional) {
-      selectedMobjectIds.current = []
       needsCanvasClickListener.current = true
       attachSelectionListeners(metadata)
     }
@@ -584,18 +608,32 @@ sys.settrace(None)
           ))}
         </ul>
       </div>
-      <div className="flex items-start">
-        <input
-          type="checkbox"
-          checked={isAutoRefreshing}
-          onChange={() => setIsAutoRefreshing(!isAutoRefreshing)}
-        />
-        <label>Auto-Refresh</label>
-        <div>
-          <span className="muted-text">
-            Or, press Command + Enter (mac) or Control + Enter (windows) to save
-            and run{" "}
-          </span>
+      <div>
+        <div className="flex items-start">
+          <div>
+            <input
+              type="checkbox"
+              checked={isAutoRefreshing}
+              onChange={() => setIsAutoRefreshing(!isAutoRefreshing)}
+            />
+            <label>Auto-Refresh</label>
+          </div>
+
+          <div>
+            <span className="muted-text">
+              Or, press Command + Enter (mac) or Control + Enter (windows) to
+              save and run{" "}
+            </span>
+          </div>
+          <input
+            type="checkbox"
+            checked={isBidirectional}
+            onChange={() => setIsBidirectional(!isBidirectional)}
+            style={{
+              paddingLeft: "0.6rem",
+            }}
+          />
+          <label>Bidirectional</label>
         </div>
       </div>
 
@@ -691,6 +729,7 @@ sys.settrace(None)
             {pyodide ? (
               <CodeEditor
                 code={code}
+                setCodeSaved={setCodeSaved}
                 title={title}
                 triggerRedraw={triggerRedraw}
                 triggerCodeSave={triggerCodeSave}
@@ -720,16 +759,38 @@ sys.settrace(None)
 
         <div style={{ flex: 1, backgroundColor: "#f5f5f5", padding: "0.3rem" }}>
           {canvasRef === null || (isLoading && <div>Loading...</div>)}
-
-          {loadTimeInSeconds !== 0 && (
-            <span
-              className="muted-text"
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              flex: 1,
+            }}
+          >
+            {canvasRef !== null && (
+              <span className="muted-text" style={{ alignSelf: "center" }}>
+                {codeSaved ? "Saved" : "Unsaved"}
+              </span>
+            )}
+            <div
               style={{
                 display: "flex",
-                justifyContent: "flex-end",
+                flexDirection: "column",
+                justifyContent: "center",
               }}
-            >{`Pyodide Load Time: ${loadTimeInSeconds.toFixed(2)}s`}</span>
-          )}
+            >
+              {pyodideLoadTimeInSeconds !== 0 && (
+                <span className="muted-text">{`Pyodide Load Time: ${pyodideLoadTimeInSeconds.toFixed(
+                  2
+                )}s`}</span>
+              )}
+              {graphicRunTimeInSeconds !== 0 && (
+                <span className="muted-text">{`Graphic Run Time: ${graphicRunTimeInSeconds.toFixed(
+                  2
+                )}s`}</span>
+              )}
+            </div>
+          </div>
+
           <div ref={setCanvasRef}></div>
           {!isLoading && (
             <div

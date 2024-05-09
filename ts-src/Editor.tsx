@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react"
 
 type EditorProps = {
   code: React.MutableRefObject<string>
+  setCodeSaved: (codeSaved: boolean) => void
   title: string
   triggerRedraw: Function
   triggerCodeSave: Function
@@ -18,6 +19,7 @@ const CodeEditor: React.FC<EditorProps> = React.forwardRef(
   (
     {
       code,
+      setCodeSaved,
       title,
       triggerRedraw,
       triggerCodeSave,
@@ -149,6 +151,7 @@ const CodeEditor: React.FC<EditorProps> = React.forwardRef(
             return
           }
           code.current = value ?? ""
+          setCodeSaved(false)
           if (isAutoRefreshing) {
             triggerRedraw()
             triggerCodeSave()

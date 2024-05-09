@@ -3,7 +3,6 @@ import { MobjectMetadataMap } from "./types"
 
 interface SelectionContextType {
   attachSelectionListeners: (metadata: any) => void
-  selectedMobjectIds: React.MutableRefObject<string[]>
   needsCanvasClickListener: React.MutableRefObject<boolean>
   lineNumbersToHighlight: number[]
 }
@@ -31,6 +30,10 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
   >([])
 
   const setupCanvasClickListener = (metadataMap: MobjectMetadataMap) => {
+    if (Object.keys(metadataMap).length === 0) {
+      console.error("Empty metadata map")
+      return
+    }
     const svgCanvas = document.getElementById(
       "smanim-canvas"
     ) as unknown as SVGSVGElement
@@ -166,6 +169,8 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
     })
   }
   const attachSelectionListeners = (metadataMap: MobjectMetadataMap) => {
+    selectedMobjectIds.current = []
+    setLineNumbersToHighlight([])
     if (needsCanvasClickListener) {
       setupCanvasClickListener(metadataMap)
       needsCanvasClickListener.current = false
@@ -254,7 +259,6 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
     <SelectionContext.Provider
       value={{
         attachSelectionListeners,
-        selectedMobjectIds,
         needsCanvasClickListener,
         lineNumbersToHighlight,
       }}

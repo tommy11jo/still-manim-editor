@@ -116,3 +116,82 @@ canvas.add(lemons, title)
 
 canvas.draw(crop=True)
 `
+
+export const IDRAW_SELECTION_DEMO = `from smanim import *
+canvas = Canvas(CONFIG)
+WIDTH, HEIGHT = 10, 25
+PWIDTH = WIDTH / 2 - 1 # panel width
+PBUFF = 0.5
+canvas.set_dimensions(WIDTH, HEIGHT)
+
+title = Text("Welcome to iDraw, a website for creating graphics with code and natural language commands", font_size=H2_FONT_SIZE)
+title.align_to(canvas.top, edge=UP, buff=0.5)
+canvas.add(title)
+
+p1_label = Text("Let's see how selection works. Hover over this tree with your mouse.", max_width=PWIDTH)
+g = Graph(vertices=[0, 1, 2, 3, 4], edges=[(0, 1), (0, 2), (2, 3), (2, 4)], include_vertex_labels=True, layout='tree', root_vertex=0)
+g.next_to(p1_label, DOWN).align_to(p1_label, LEFT)
+panel1 = Group(p1_label, g).scale_to_fit_width(PWIDTH)
+
+
+p2_label = Text("Try clicking to select just the tree, so that it looks like this. This should take three clicks.", max_width=PWIDTH)
+g2 = g.copy().next_to(p2_label, DOWN, buff=0.3)
+def add_selection_box(mob):
+    mob.add_surrounding_rect(stroke_color=PURE_BLUE, stroke_width=2.0, z_index=10)
+add_selection_box(g2)
+panel2 = Group(g2, p2_label)
+
+row1 = Group(panel1, panel2).arrange(buff=1.0)
+row1.next_to(title, DOWN, buff=0.5).align_to(canvas.left, edge=LEFT, buff=PBUFF)
+canvas.add(row1)
+
+p3_label = Text("With the tree selected, you can also select its children components...", max_width=WIDTH - PBUFF * 2)
+p3_1_label = Text("...like this edge...")
+p3_1_label.next_to(p3_label, DOWN, buff=0.5).align_to(p3_label, edge=LEFT, buff=0.2)
+g3 = g.copy()
+g3.scale_to_fit_width(p3_1_label.width).next_to(p3_1_label, DOWN)
+add_selection_box(g3.edges[(2, 3)])
+p3_2_1_label = Text("...or these vertices.")
+p3_2_1_label.next_to(p3_1_label, RIGHT, buff=1.0)
+g4 = g.copy()
+g4.scale_to_fit_width(g3.width).next_to(p3_2_1_label, DOWN)
+add_selection_box(g4.vertices[2])
+add_selection_box(g4.vertices[3])
+
+arrow = Arrow.points_at(g4.vertices[3], direction=LEFT, length=0.5, buff=0.2)
+t_arrow = Text("Use command + click (mac) or ctrl + click (windows) to select multiple items at once.", font_size=14, max_width=2.0)
+t_arrow.next_to(arrow, RIGHT).align_to(arrow, edge=DOWN)
+panel3 = Group(p3_label, p3_1_label, g3, p3_2_1_label, g4, arrow, t_arrow)
+panel3.next_to(row1, DOWN, buff=PBUFF).align_to(panel1, edge=LEFT)
+canvas.add(panel3)
+
+p4_text = Text("And then you can enter a 'language command', rather than clicking through a typical UI.", max_width=WIDTH - PBUFF * 2)
+p4_command = Text("> Make these two nodes red", italics=True)
+g5 = g4.copy().scale_to_fit_width(g4.width).next_to(p4_command, DOWN)
+box_el1 = Group(p4_command, g5)
+p4_result = Text("Result")
+g6 = g.copy().scale_to_fit_width(g5.width)
+g6.vertices[2].set_color(RED)
+g6.vertices[3].set_color(RED)
+g6.next_to(p4_result, DOWN)
+box_el2 = Group(p4_result, g6)
+box_list = BoxList(box_el1, box_el2)
+
+box_list.next_to(p4_text, DOWN, buff=0.5).align_to(p4_text, LEFT)
+panel4 = Group(p4_text, box_list)
+panel4.next_to(panel3, DOWN, buff=PBUFF).align_to(panel3, LEFT)
+canvas.add(panel4)
+
+p5_text = Text("At least that's the idea. Right now it's hard to get the LLM to do complex things but hopefully this will improve soon:", max_width=WIDTH - PBUFF * 2)
+p5_text.next_to(panel4, DOWN, buff=PBUFF).align_to(panel4, LEFT)
+canvas.add(p5_text)
+
+p6_command = Text("> Make a graphic that explains selection in iDraw. Show a simple tree, like a graph with vertices and edges, and show what command click does.", italics=True, max_width=3.0)
+p6_result = Text("Result")
+graphic = Group(panel1.copy(), panel2.copy(), panel3.copy()).scale(0.4)
+graphic.next_to(p6_result, DOWN)
+result_group = Group(p6_result, graphic)
+box_list = BoxList(p6_command, result_group)
+box_list.next_to(p5_text, DOWN, buff=0.5).align_to(p5_text, LEFT)
+canvas.add(box_list)
+canvas.draw()`
