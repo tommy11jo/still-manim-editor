@@ -3,10 +3,10 @@ import "./index.css"
 
 import { MobjectMetadataMap } from "./types"
 import {
-  DIJKSTRA_DEMO,
   IDRAW_SELECTION_DEMO,
   LEMON_DEMO,
   SIN_AND_COS_DEMO,
+  SMANIM_INTRO,
 } from "./demos"
 
 import { useSvgDownloader } from "./svgDownloader"
@@ -42,14 +42,15 @@ canvas.draw()
 `
 
 const DEMO_MAP = {
+  smanim_intro: SMANIM_INTRO,
   lemon_logo: LEMON_DEMO,
-  sin_and_cos: SIN_AND_COS_DEMO,
-  dijkstras: DIJKSTRA_DEMO,
   selection_demo: IDRAW_SELECTION_DEMO,
+  sin_and_cos: SIN_AND_COS_DEMO,
 }
 const DEFAULT_FS_DIR = "/home/pyodide/media"
+// micropip does not support local file system, but I could load my local dev wheel into the virtual file system
 const SMANIM_WHEEL =
-  "https://test-files.pythonhosted.org/packages/40/63/173125866131fff0487552c455b4662c2c676d2841b11d2c9759b2a73fd1/still_manim-0.9.2-py3-none-any.whl"
+  "https://test-files.pythonhosted.org/packages/01/3c/875e2ded3da5af44085edf1fd341219720ba7423be9567ff4c76e2cf2e61/still_manim-1.0.0-py3-none-any.whl"
 
 function randId(): string {
   const length = 10
@@ -65,8 +66,6 @@ function randId(): string {
   return result
 }
 const App = () => {
-  // for complex graphics, using bidirectional editing with settrace is a 4x slowdown
-  const [isBidirectional, setIsBidirectional] = useState(true)
   const {
     attachSelectionListeners,
     needsCanvasClickListener,
@@ -100,6 +99,15 @@ const App = () => {
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const { downloadSvg, downloadSvgAsPng } = useSvgDownloader()
+
+  // for complex graphics, using bidirectional editing with settrace is a 4x slowdown
+  const [isBidirectional, setIsBidirectional] = useState(false)
+  useEffect(() => {
+    if (isBidirectional) {
+      const metadata = runCurrentCode(code.current, pyodide)
+      attachSelectionListeners(metadata)
+    }
+  }, [isBidirectional])
 
   // hard reset used for testing
   // localStorage.clear()
@@ -179,6 +187,9 @@ const App = () => {
         // Known non-breaking bug with pyodide and monaco: https://github.com/microsoft/monaco-editor/issues/4384
         // Ideally I'd like to show the code even if pyodide is still loading. So I'm waiting on this bug fix.
         const loadedPyodide = (await window.loadPyodide()) as Pyodide
+        loadedPyodide.runPython(`
+import sys
+print('Python version:', sys.version)`)
         await loadedPyodide.loadPackage(["micropip"])
 
         const micropip = loadedPyodide.pyimport("micropip")
@@ -219,10 +230,10 @@ const App = () => {
 import sys
 from smanim.bidirectional.bidirectional import reset_bidirectional
 from smanim.config import CONFIG 
-from smanim.canvas import Canvas
+from smanim.canvas import reset_canvas 
 reset_bidirectional()
 CONFIG.reset_config()
-canvas = Canvas(CONFIG)
+reset_canvas()
 for name in list(globals()):
     if not name.startswith('__') and name not in sys.modules:
         del globals()[name]
@@ -231,7 +242,11 @@ for name in list(globals()):
       // see that <exec> is the correct name by running:
       // print('name is', inspect.currentframe().f_code.co_filename)
       // encoding to base64 allows me to avoid breaking on quotes or triple quotes
-      const curCodeEncoded = btoa(curCode)
+      const utf8Encode = new TextEncoder()
+      const curCodeEncoded = btoa(
+        String.fromCharCode(...utf8Encode.encode(curCode))
+      )
+
       pyodide.runPython(`
 from smanim.bidirectional.custom_linecache import CustomLineCache
 import base64
@@ -817,6 +832,10 @@ sys.settrace(None)
                   <li>
                     Hold Command + Click to select multiple mobjects at once on
                     mac. Or Ctrl + Click for windows.
+                  </li>
+                  <li>
+                    All files are stored in local storage. If you reset your
+                    cookies, your files will be lost.
                   </li>
                 </ul>
               </span>

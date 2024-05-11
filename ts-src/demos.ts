@@ -11,78 +11,6 @@ canvas.add(n, sin_label, cos_label)
 canvas.draw()
 `
 
-export const DIJKSTRA_DEMO = `# Improve this to be like programcomics.com
-from smanim import *
-from typing import Hashable, Tuple
-WEIGHTED_GRAPH1 = {
-    0: [(1, 2), (2, 1)],
-    1: [(2, 5), (3, 11), (4, 3)],
-    2: [(5, 15)],
-    3: [(4, 2)],
-    4: [(2, 1), (5, 4), (6, 5)],
-    5: [],
-    6: [(3, 1), (5, 1)],
-}
-graph = WEIGHTED_GRAPH1
-vertices, edges, edge_labels = WeightedGraph.from_adjacency_list(graph)
-graph = WeightedGraph(
-  vertices, 
-  edges,
-  include_vertex_labels=True,
-  edge_labels=edge_labels,
-  edge_type=Arrow,
-  vertex_config={"fill_color": GREEN, "fill_opacity": 0.4, "radius": 0.2},
-  edge_config={"opacity": 0.5},
-  layout_config={"seed": 2}
-)
-graph.scale(1.5)
-canvas.add(graph)
-
-
-start = graph.vertices[0]
-start.set_color(BLUE, family=False)
-start_label = Text("start")
-start_label.next_to(start, buff=SMALL_BUFF)
-canvas.add(start_label)
-
-graph.vertices[2].set_color(BLUE, family=False)
-two_dist = Text("1", color=RED).next_to(graph.vertices[2], LEFT, buff=SMALL_BUFF)
-five_dist = Text("16", color=RED).next_to(graph.vertices[5], LEFT, buff=SMALL_BUFF)
-canvas.add(two_dist, five_dist)
-
-visited_edges = Group(graph.edges[(0, 2)], graph.edges[(0, 1)])
-visited_edges.set_color(GREEN)
-visited_edges.set_opacity(0.4)
-
-cur_node = graph.vertices[1].set_color(RED, family=False).set_opacity(1.0, family=False)
-relaxed_edges = Group(graph.edges[(1, 2)], graph.edges[(1, 4)], graph.edges[(1, 3)])
-relaxed_edges.set_color(RED).set_opacity(1.0)
-relaxed_edges[0].set_opacity(0.5)
-
-four_dist = Text("5", color=RED).next_to(graph.vertices[4], UP, buff=SMALL_BUFF)
-four_dist.add_surrounding_rect(stroke_color=RED)
-canvas.add(four_dist)
-three_dist = Text("13", color=RED).next_to(graph.vertices[3], UP, buff=SMALL_BUFF)
-three_dist.add_surrounding_rect(stroke_color=RED)
-canvas.add(three_dist)
-
-title = Text("Relaxing Edges in Dijkstra's", font_size=H1_FONT_SIZE)
-title.next_to(graph, UP).shift(UP * 0.2 + RIGHT * 0.4)
-canvas.add(title)
-
-desc = Group()
-blue_dot = Dot(fill_color=BLUE, fill_opacity=0.4)
-legend = Text("Legend").next_to(graph, buff=0.6)
-blue_dot.next_to(legend, DOWN).align_to(legend, LEFT)
-blue_text = Text("Already visited").next_to(blue_dot)
-red_dot = Dot(fill_color=RED).next_to(blue_dot, DOWN)
-red_text = Text("Currently visiting").next_to(red_dot)
-desc.add(legend, blue_dot, blue_text, red_dot, red_text)
-canvas.add(desc)
-
-canvas.draw(crop=True)
-`
-
 export const LEMON_DEMO = `from smanim import *
 stroke_width = 1
 lemon = VGroup()
@@ -98,8 +26,8 @@ lemon.bring_to_front(c)
 
 spikes = VGroup()
 for prop in range(8):
-    vector = Vector(c.point_from_proportion(prop / 8))
-    spikes.add(vector)
+    line = Line(ORIGIN, c.point_from_proportion(prop / 8))
+    spikes.add(line)
 lemon.add(spikes)
 
 other_lemon: VGroup = lemon.copy()
@@ -128,7 +56,7 @@ title = Text("Welcome to iDraw, a website for creating graphics with code and na
 title.align_to(canvas.top, edge=UP, buff=0.5)
 canvas.add(title)
 
-p1_label = Text("Let's see how selection works. Hover over this tree with your mouse.", max_width=PWIDTH)
+p1_label = Text("Let's see how selection works. First, make sure bidirectional editing is turned on by checking the box above the code editor. Then, hover over this tree with your mouse.", max_width=PWIDTH)
 g = Graph(vertices=[0, 1, 2, 3, 4], edges=[(0, 1), (0, 2), (2, 3), (2, 4)], include_vertex_labels=True, layout='tree', root_vertex=0)
 g.next_to(p1_label, DOWN).align_to(p1_label, LEFT)
 panel1 = Group(p1_label, g).scale_to_fit_width(PWIDTH)
@@ -195,3 +123,297 @@ box_list = BoxList(p6_command, result_group)
 box_list.next_to(p5_text, DOWN, buff=0.5).align_to(p5_text, LEFT)
 canvas.add(box_list)
 canvas.draw()`
+
+export const SMANIM_INTRO = `from smanim import *
+WIDTH, HEIGHT = 14, 42
+PBUFF = 0.8
+ROW_WIDTH = WIDTH - PBUFF * 2
+canvas.set_dimensions(WIDTH, HEIGHT)
+
+title = Text("Still Manim?", font_size=H1_FONT_SIZE).align_to(canvas.top, UP, buff=PBUFF)
+canvas.add(title)
+
+def gen_eye():
+    blue_arc = Arc(start_angle=PI, angle=3 * PI / 2, stroke_color=BLUE, stroke_width=16)
+    brown_arc = Arc(start_angle=PI / 2, angle=PI / 2, stroke_color=DARK_BROWN, stroke_width=16)
+    eye = VGroup(blue_arc, brown_arc).scale(0.4)
+    return eye
+def gen_fading_eyes(rotate=False):
+    eye = gen_eye()
+    k = 6
+    fading_eyes = VGroup(*[eye.copy().set_opacity(1 - (i - 1) / k).shift(LEFT * i * 0.7) for i in range(1, k + 1)])
+    if rotate:
+        fading_eyes.rotate(PI)
+    return fading_eyes
+
+def get_intro_row():
+    row = Group()
+    p1_text = Text("""Manim is python library for creating math animations, created by 3blue1brown and used in his youtube videos. 
+While it's designed for animations, it can also be used for creating static graphics like this comic.""")
+    fading_eyes = gen_fading_eyes()
+    fading_eyes.next_to(p1_text, DOWN, buff=0.3)
+    intro_p1 = Group(p1_text, fading_eyes)
+    intro_p1.next_to(title, DOWN, buff=PBUFF).align_to(canvas.left, LEFT, buff=PBUFF)
+    row.add(intro_p1)
+    p2_text = Text("""Why not use existing tools to create static graphics?
+Such as direct manipulators like Powerpoint or Figma; standard web dev tools like HTML and CSS; or programmatic tools like TikZ or Penrose?
+What does Manim have that these don't?""")
+    balance = Triangle().scale(0.3).stretch(0.5, dim=0)
+    top_vertex = balance.vertices[0]
+    start_line = Line(start=2 * LEFT, end=top_vertex)
+    end_line = Line(start=top_vertex, end=top_vertex + start_line.get_direction() * start_line.length)
+    manim_text = Text("Manim", color=BLUE).next_to(end_line.end, UP)
+    existing_text = Text("Existing Solutions", color=RED).next_to(start_line.start, UP, buff=0.2)
+    scale_obj = Group(balance, start_line, end_line)
+    scale_obj.set_color(GOLD)
+    scale_group = Group(scale_obj, manim_text, existing_text)
+    scale_group.next_to(p2_text, DOWN, buff=0.3)
+    p2 = Group(p2_text, scale_group)
+    p2.next_to(intro_p1, RIGHT, UP)
+    row.add(p2)
+    return row
+intro_row = get_intro_row()
+canvas.add(intro_row)
+
+def gen_features_row():
+    p1_text = Text("""Two of Manim's core features are relative positioning commands and spatial transformations.
+With relative positioning commands, you can place objects in relation to each other:""")
+    box1 = Text("circle.next_to(square, RIGHT)")
+    def gen_shapes():
+        c = Circle(radius=0.3, color=RED, opacity=0.5)
+        s = Square(side_length=1.0, color=BLUE, opacity=0.5)
+        return c, s
+    c1, s1 = gen_shapes()
+    orig1 = VGroup(s1, c1)
+    c2, s2 = gen_shapes()
+    c2.next_to(s2, RIGHT)
+    transformed1 = VGroup(c2, s2)
+    transformed1.shift(RIGHT * (orig1.width + 1))
+    arrow1 = Arrow(orig1, transformed1, buff=0.2)
+    box1_graphic = VGroup(orig1, transformed1, arrow1)
+    box1_graphic.next_to(box1, DOWN, buff=0.3)
+    box1 = Group(box1, box1_graphic)
+
+    box2_text = Text("circle.align_to(square, UP)")
+    c3, s3 = gen_shapes()
+    orig2 = VGroup(c3, s3)
+    c4, s4 = gen_shapes()
+    c4.align_to(s4, UP)
+    transformed2 = VGroup(c4, s4)
+    transformed2.shift(RIGHT * (orig2.width + 1))
+    arrow2 = Arrow(orig2, transformed2, buff=0.2)
+    box2_graphic = VGroup(orig2, transformed2, arrow2)
+    box2_graphic.next_to(box2_text, DOWN, buff=0.3)
+    box2 = Group(box2_text, box2_graphic)
+
+    box3_text = Text("dot.move_to(triangle.vertices[0])")
+    tri1 = Triangle(color=BLUE, opacity=0.5).scale(0.5)
+    dot1 = Dot(color=RED, opacity=0.5)
+    orig3 = VGroup(tri1, dot1)
+    tri2 = tri1.copy()
+    dot2 = dot1.copy()
+    transformed3 = VGroup(tri2, dot2)
+    dot2.move_to(tri2.vertices[0])
+    transformed3.shift(RIGHT * (orig3.width + 1))
+    arrow3 = Arrow(orig3, transformed3, buff=0.2)
+    box3_graphic = VGroup(orig3, transformed3, arrow3)
+    box3_graphic.next_to(box3_text, DOWN, buff=0.3)
+    box3 = Group(box3_text, box3_graphic)
+
+    p3_graphic = BoxList(box1, box2, box3, direction=DOWN, x_padding=0.3, y_padding=0.3, aligned_edge=ORIGIN)
+    p3_graphic.next_to(p1_text, DOWN, buff=0.3)
+    panel3 = Group(p1_text, p3_graphic)
+    panel3.next_to(intro_row, DOWN, LEFT, buff=PBUFF)
+    canvas.add(panel3)
+
+    p2_text = Text("""And spatial transformations are used to change the object itself:""")
+    box4_text = Text("rect.scale(2)")
+    def get_rect():
+        return Rectangle(width=1, height=0.5, color=RED, opacity=0.5)
+    r1 = get_rect()
+    r2 = get_rect().scale(2).next_to(r1, buff=1.0)
+    arrow4 = Arrow(r1, r2, buff=0.1)
+    box4_graphic = Group(r1, r2, arrow4)
+    box4_graphic.next_to(box4_text, DOWN)
+    box4 = Group(box4_text, box4_graphic)
+
+    box5_text = Text("rect.stretch(2, dim=0)")
+    r3 = get_rect()
+    r4 = get_rect().stretch(2, dim=0).next_to(r3, buff=1.0)
+    arrow2 = Arrow(r3, r4, buff=0.1)
+    box5_graphic = Group(r3, r4, arrow2)
+    box5_graphic.next_to(box5_text, DOWN)
+    box5 = Group(box5_text, box5_graphic)
+
+    box6_text = Text("rect.rotate(PI / 4)")
+    r5 = get_rect()
+    r6 = get_rect().rotate(PI / 4).next_to(r5, buff=1.0)
+    arrow6 = Arrow(r5, r6, buff=0.1)
+    box6_graphic = Group(r5, r6, arrow6)
+    box6_graphic.next_to(box6_text, DOWN)
+    box6 = Group(box6_text, box6_graphic)
+
+    box7_text = Text("rect.shift(RIGHT)")
+    r7 = get_rect()
+    r8 = get_rect().shift(RIGHT * 2).next_to(r7, buff=2.0)
+    arrow7 = arrow6.copy().next_to(r7, buff=0.1)
+    box7_graphic = Group(r7, r8, arrow7)
+    box7_graphic.next_to(box7_text, DOWN)
+    box7 = Group(box7_text, box7_graphic)
+    p2_graphic = BoxList(box4, box5, box6, box7, direction=DOWN, x_padding=0.3, y_padding=0.3, aligned_edge=ORIGIN)
+    p2_graphic.next_to(p2_text, DOWN, buff=0.3)
+    panel2 = Group(p2_text, p2_graphic)
+    panel2.next_to(panel3, RIGHT).align_to(p1_text, UP)
+    canvas.add(panel2)
+    return Group(panel3, panel2)
+feature_row = gen_features_row()
+
+def gen_more_features_row():
+    p1_text = Text("""Manim also has analogs to the WYSIWYG features of positioning, styling, layering, and grouping.
+What might have existed in a right-click menu or a user interface exists in Manim as a function call.""")
+    command_text = Text("shape_group.bring_to_front(circle)").align_to(p1_text, LEFT)
+    c = Circle(color=RED).shift(0.5)
+    s = Square()
+    orig1 = Group(c, s)
+    orig1.next_to(command_text, DOWN, LEFT)
+    c2 = c.copy()
+    s2 = s.copy()
+    transformed1 = Group(c2, s2).next_to(orig1, buff=1.0)
+    transformed1.bring_to_front(c2)
+    arrow = Arrow(orig1, transformed1, buff=0.1)
+    p1_graphic1 = Group(command_text, orig1, transformed1, arrow).next_to(p1_text, DOWN, buff=0.4)
+
+    command2_text = Text("shape_group.set_color(GREEN)").next_to(p1_graphic1, DOWN, buff=0.2)
+    orig2 = orig1.copy().next_to(command2_text, DOWN, LEFT)
+    c3, s3 = c.copy(), s.copy()
+    transformed2 = Group(c3, s3).set_color(GREEN).next_to(orig2, buff=1.0)
+    arrow2 = Arrow(orig2, transformed2, buff=0.1)
+    p1_graphic2 = Group(command2_text, orig2, transformed2, arrow2).next_to(p1_graphic1, DOWN)
+    p1_graphic = Group(p1_graphic1, p1_graphic2).scale(0.7)
+
+    extra_note = Text("Note: the 'bring_to_front' syntax differs from Manim slightly. This is syntax for Still Manim.", font_size=12)
+    extra_note.next_to(p1_graphic, DOWN, buff=0.3)
+    p1 = Group(p1_text, p1_graphic, extra_note)
+
+    p2_text = Text("""Despite having a lot of nice features for static graphics, Manim is designed for animations.
+To render a character of text in Manim, the character is transformed to an svg which is transformed to a list of mobjects which store the underlying shape of the character as points that represent bezier curves so that a graphics library called cairo can finally draw the character. Pretty compute intensive for just text.
+And wrapping text, like what you're reading now, isn't a standard capability.""")
+    p2_graphic = Lambda().scale(3).next_to(p2_text, DOWN, buff=0.3)
+    for point in p2_graphic.points:
+        p2_graphic.add(Dot(point, radius=0.03, color=BLUE))
+    p2 = Group(p2_text, p2_graphic)
+    p2.next_to(p1, RIGHT, UP, buff=PBUFF)
+    return Group(p1, p2)
+
+more_features_row = gen_more_features_row()
+more_features_row.next_to(feature_row, DOWN, LEFT, buff=PBUFF)
+canvas.add(more_features_row)
+
+def gen_smanim_intro_row():  
+    def get_lemon_logo():
+        stroke_width = 2
+        lemon = VGroup()
+        c = Circle(fill_color=YELLOW_D, stroke_color=WHITE, stroke_width=stroke_width)
+        c.stretch(1.4, dim=0).rotate(PI / 8)
+        arc = Arc(
+            angle=-PI, fill_color=YELLOW_E, stroke_color=WHITE, stroke_width=stroke_width
+        )
+        arc.stretch(2, dim=1)
+        arc.stretch(1.4, dim=0).rotate(PI / 8)
+        lemon.add(c, arc)
+        lemon.bring_to_front(c)
+
+        spikes = VGroup()
+        for prop in range(8):
+            line = Line(ORIGIN, c.point_from_proportion(prop / 8))
+            spikes.add(line)
+        lemon.add(spikes)
+
+        other_lemon: VGroup = lemon.copy()
+        other_lemon.scale(0.8).shift(RIGHT * 0.5).rotate(-PI / 4)
+        lemon.shift(LEFT * 0.5)
+        other_lemon.shift(RIGHT * 0.8)
+        other_lemon.set_z_index(-10)
+
+        lemons = VGroup(lemon, other_lemon)
+        lemons = VGroup(lemon, other_lemon)
+        title = Text("Still Manim", font_size=H1_FONT_SIZE)
+        lemons.scale_to_fit_height(title.height)
+        title.next_to(lemons, buff=0.05)
+        return Group(title, lemons)
+    p1_text = Text("""For those reasons, I built Still Manim, a variant of Manim that is designed for static pictures rather than animations.
+Still Manim is a python library for drawing domain-specific static graphics for math and programming.
+It's *still* Manim in that it has a lot of the same user-facing abstractions as the original Manim.
+But Still Manim handles text differently, outputs SVGs rather than PNGs, and can run in the browser.""", max_width=ROW_WIDTH)
+    p1_graphic = get_lemon_logo().scale(2).next_to(p1_text, DOWN, buff=0.3)
+    p1 = Group(p1_text, p1_graphic)
+    return p1
+
+smanim_row = gen_smanim_intro_row()
+smanim_row.next_to(more_features_row, DOWN, LEFT, buff=PBUFF)
+canvas.add(smanim_row)
+
+def gen_complex_examples_row(): 
+    p1_text = Text("""Still Manim can be used to draw a 2D cartesian plane with a vector or a weighted graph or the comic that you're reading now!""", max_width=ROW_WIDTH)
+    cartesian = NumberPlane.from_axes_ranges([-2, 2, 1], [-1, 3, 1], x_length=8, y_length=8, fill_canvas=False)
+    cartesian.scale(0.6).next_to(p1_text, DOWN, LEFT)
+    vector = Arrow(cartesian.coords_to_point(0, 0), cartesian.coords_to_point(1, 2))
+    cartesian.add(vector)
+
+    graph = Graph(vertices=[0, 1, 2, 3, 4], edges=[(0, 1), (0, 2), (0, 3), (1, 3), (2, 3), (2, 4), (3, 4)], include_vertex_labels=True, layout_config={"seed": 0})
+    graph.next_to(cartesian, RIGHT, UP)
+
+    p1_subpanel_text = Text("""And since these are native objects, they can be positioned relatively, transformed spatially, labeled, styled, layered, or grouped.""", max_width=ROW_WIDTH / 3)
+    p1_subpanel_text.next_to(graph, RIGHT, UP)
+    graph2 = graph.copy().scale(0.5).rotate(PI / 2).next_to(p1_subpanel_text, DOWN, LEFT).shift(RIGHT * 0.3)
+    vertex_arrow = Arrow.points_at(graph2.vertices[2], direction=LEFT, length=0.5, color=RED)
+    start_text = Text("You are here", font_size=16, color=RED).next_to(vertex_arrow, RIGHT)
+    p1 = Group(p1_text, cartesian, graph, p1_subpanel_text, graph2, vertex_arrow, start_text)
+    p1.next_to(smanim_row, DOWN, LEFT, buff=PBUFF)
+    return p1
+
+complex_examples_row = gen_complex_examples_row()
+canvas.add(complex_examples_row)
+
+def gen_towards_llm_row():
+    p1_text = Text("""Today, these graphics take a lot of time to create.
+I've used about 250 lines of code to create everything up until the text you're reading now.
+But a neat property that distinguishes Still Manim from other diagramming tools is that I could write nearly all of this code without actually seeing the diagram.""")
+    fading_eyes2 = gen_fading_eyes(rotate=True)
+    fading_eyes2.next_to(p1_text, DOWN, buff=0.3)
+    p1 = Group(p1_text, fading_eyes2)
+    canvas.add(p1)
+    p2_text = Text("""Now who would want to create a graphic without seeing the code?
+    And who would be willing to do the tedious work to produce good style and layout?""")
+    question_text = Text("?", font_size=80).next_to(p2_text, DOWN)
+    answer_text = Text("""Answer: A large language model. Could Still Manim act as a whiteboard for LLM tutors? Maybe in the future.""")
+    answer_text.next_to(question_text, DOWN).align_to(p2_text, LEFT)
+    p2 = Group(p2_text, question_text, answer_text)
+    p2.next_to(p1, RIGHT, UP, buff=PBUFF)
+    canvas.add(p2)
+    row4 = Group(p1, p2)
+    return row4
+
+towards_llm_row = gen_towards_llm_row()
+towards_llm_row.next_to(complex_examples_row, DOWN, LEFT, buff=PBUFF)
+canvas.add(towards_llm_row)
+
+def gen_future_goals_row():
+    p1_text = Text("""
+    Right now, I'm interested in using LLMs as an assistant to help a human user incrementally edit diagrams.
+    The user would optionally point at objects on the diagram, describe a change to the diagram in words, and the LLM would edit the code.
+    I've built a web editor for writing Still Manim code, a website called iDraw which is where I made this comic.
+    Next, I'll experiment with using LLMs to edit code written in Still Manim.
+    Stay tuned.""", max_width=ROW_WIDTH)
+    robot = Text("🤖").scale(2).rotate_in_place(PI / 2)
+    robot2 = robot.copy().scale(2).rotate_in_place(-PI / 4)
+    robot3 = robot.copy().scale(4).rotate_in_place(-PI / 2)
+    robot_group = Group(robot, robot2, robot3).arrange().next_to(p1_text, DOWN, buff=0.5)
+    return Group(p1_text, robot_group)
+
+future_goals_row = gen_future_goals_row()
+future_goals_row.next_to(towards_llm_row, DOWN, LEFT, buff=PBUFF)
+canvas.add(future_goals_row)
+canvas.draw()
+
+`
