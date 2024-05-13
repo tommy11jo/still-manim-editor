@@ -15,6 +15,7 @@ type EditorProps = {
 }
 
 // Known Bug in Monaco when resizing in chrome or edge: https://github.com/microsoft/monaco-editor/issues/4311
+// affects development, not production
 const CodeEditor: React.FC<EditorProps> = React.forwardRef(
   (
     {

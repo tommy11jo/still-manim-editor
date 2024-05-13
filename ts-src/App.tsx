@@ -14,6 +14,7 @@ import { useSelection } from "./SelectionContext"
 
 import CodeEditor from "./Editor"
 import { INIT_CODE, usePyodideWebWorker } from "./PyodideWebWorkerContext"
+import { debounce } from "lodash"
 
 const REFRESH_RATE = 300 // refresh every 300ms
 const CODE_SAVE_RATE = 3000 // save every 3s
@@ -69,7 +70,6 @@ const App = () => {
   const [codeSaved, setCodeSaved] = useState(true)
 
   const redrawInProgress = useRef(false)
-  const [codeSaveInProgress, setCodeSaveInProgress] = useState(false)
   // invariants: if name exists in filenames, then name exists as key in nameToBlob
   // if blob id exists as value in nameToBlob, then blob id exists as key in blobToContent
   const [filenames, setFilenames] = useState<string[]>([])
@@ -79,43 +79,54 @@ const App = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const { downloadSvg, downloadSvgAsPng } = useSvgDownloader()
 
-  // hard reset used for testing
-  // localStorage.clear()
+  // clear cookies to reset storage for testing
   // keep local storage in sync with state vars for managinng filenames, blob ids, and file content
   useEffect(() => {
     const curFilenamesStr = localStorage.getItem("filenames")
     const curNameToBlobStr = localStorage.getItem("nameToBlob")
     const curBlobToContentStr = localStorage.getItem("blobToContent")
-    let curTitle
-    let curNameToBlob
+
+    let curTitle: string | undefined
+    let blobId: string | undefined
     if (!curFilenamesStr) {
       localStorage.setItem("filenames", JSON.stringify([]))
     } else {
-      const filenamesList = JSON.parse(curFilenamesStr)
-      setFilenames(filenamesList)
-      if (filenamesList.length > 0) {
-        curTitle = filenamesList[filenamesList.length - 1]
-        setTitle(curTitle)
+      try {
+        const filenamesList = JSON.parse(curFilenamesStr)
+        setFilenames(filenamesList)
+        const fname = filenamesList[filenamesList.length - 1]
+        curTitle = fname
+        setTitle(fname)
+      } catch {
+        throw Error("Error parsing filenames list and setting title")
       }
     }
 
     if (!curNameToBlobStr) {
       localStorage.setItem("nameToBlob", JSON.stringify({}))
     } else {
-      curNameToBlob = JSON.parse(curNameToBlobStr)
-      setNameToBlob(curNameToBlob)
+      try {
+        const curNameToBlob = JSON.parse(curNameToBlobStr)
+        setNameToBlob(curNameToBlob)
+        if (curTitle !== undefined) blobId = curNameToBlob[curTitle]
+      } catch {
+        throw Error("Error parsing name to blob id string dict")
+      }
     }
 
     if (!curBlobToContentStr) {
       localStorage.setItem("blobToContent", JSON.stringify({}))
     } else {
-      const curBlobToContent = JSON.parse(curBlobToContentStr)
-      setBlobToContent(curBlobToContent)
-      if (curTitle === undefined || curNameToBlob == undefined) return
-      const blobId = curNameToBlob[curTitle]
-      code.current = curBlobToContent[blobId]
-      setWaitingForExecution(true)
+      try {
+        const curBlobToContent = JSON.parse(curBlobToContentStr)
+        setBlobToContent(curBlobToContent)
+        if (blobId !== undefined) code.current = curBlobToContent[blobId]
+      } catch {
+        throw Error("Error parsing name to blob id to content string dict")
+      }
     }
+
+    setWaitingForExecution(true)
     // invariant: title is guaranteed to be updated within 3 seconds of mounting, so the first save will use the updated title
   }, [])
   useEffect(() => {
@@ -150,15 +161,22 @@ const App = () => {
   }, [])
 
   useEffect(() => {
-    if (waitingForExecution) runPythonCodeInWorker()
-  }, [waitingForExecution])
+    if (waitingForExecution) {
+      if (title === "") {
+        const newTitle = nextAvailableFilename([])
+        setTitle(newTitle)
+      }
+      runPythonCodeInWorker()
+      setWaitingForExecution(false)
+    }
+  }, [waitingForExecution, runPythonCodeInWorker])
   useEffect(() => {
     if (pyodideRunStatus !== "none") {
       setIsLoading(false)
     }
   }, [pyodideRunStatus])
   useEffect(() => {
-    const afterRunCompletion = (result: string) => {
+    const afterRunCompletion = (result: string): MobjectMetadataMap => {
       if (!result) {
         setOutput(
           "Make sure that canvas.draw() is the last line of the program."
@@ -181,20 +199,20 @@ const App = () => {
       }
       return metadataMap
     }
-    if (metadataMapStr) {
+    if (canvasRef !== null && metadataMapStr !== "") {
       afterRunCompletion(metadataMapStr)
     }
     // change of metadataMapStr indicates successful new run
-  }, [metadataMapStr])
+  }, [canvasRef, metadataMapStr])
 
   const runPythonCodeInWorkerRef = useRef(runPythonCodeInWorker)
   runPythonCodeInWorkerRef.current = runPythonCodeInWorker
   // Use the most recent runPythonCodeInWorker function but don't allow it to trigger this effect
   useEffect(() => {
-    if (isBidirectional) {
+    if (canvasRef !== null && isBidirectional) {
       runPythonCodeInWorkerRef.current()
     }
-  }, [isBidirectional])
+  }, [canvasRef, isBidirectional])
 
   const triggerRedraw = useCallback(() => {
     // this fn attach listeners so mobjects can be selected
@@ -212,14 +230,13 @@ const App = () => {
     }
   }, [canvasRef, isAutoRefreshing, isBidirectional, runPythonCodeInWorker])
 
-  const triggerCodeSave = useCallback(() => {
-    if (!codeSaveInProgress) {
-      setCodeSaveInProgress(true)
-      if (title === "") {
-        console.error("Cannot save a file with an empty string title")
-        return
-      }
-      setTimeout(() => {
+  const triggerCodeSave = useCallback(
+    debounce(
+      () => {
+        if (title === "") {
+          console.error("Cannot save a file with an empty string title")
+          return
+        }
         if (!filenames.includes(title)) {
           const newBlobId = randId()
           setFilenames((filenames) => [...filenames, title])
@@ -242,10 +259,12 @@ const App = () => {
           setFilenames(newFilenames)
         }
         setCodeSaved(true)
-        setCodeSaveInProgress(false)
-      }, CODE_SAVE_RATE)
-    }
-  }, [title, codeSaveInProgress, filenames])
+      },
+      CODE_SAVE_RATE,
+      { leading: true, trailing: true }
+    ),
+    [title, filenames, nameToBlob, blobToContent]
+  )
 
   const openExistingFile = (title: string) => {
     setTitle(title)
@@ -615,9 +634,13 @@ const App = () => {
               flex: 1,
               backgroundColor:
                 pyodideRunStatus === "success"
-                  ? "rgba(0, 128, 0, 0.1)"
-                  : pyodideRunStatus === "error"
-                  ? "rgba(255, 0, 0, 0.1)"
+                  ? "rgba(0, 128, 0, 0.2)"
+                  : pyodideRunStatus === "error" ||
+                    pyodideRunStatus === "timeout"
+                  ? "rgba(255, 0, 0, 0.2)"
+                  : pyodideRunStatus === "running" ||
+                    pyodideRunStatus === "none"
+                  ? "rgba(255, 255, 0, 0.2)"
                   : "none",
 
               padding: "0.3rem",
