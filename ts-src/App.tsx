@@ -165,11 +165,14 @@ const App = () => {
       if (title === "") {
         const newTitle = nextAvailableFilename([])
         setTitle(newTitle)
+        // triggers rereun with new title
+      } else {
+        runPythonCodeInWorker()
+        setWaitingForExecution(false)
       }
-      runPythonCodeInWorker()
-      setWaitingForExecution(false)
     }
-  }, [waitingForExecution, runPythonCodeInWorker])
+  }, [waitingForExecution, title, runPythonCodeInWorker])
+
   useEffect(() => {
     if (pyodideRunStatus !== "none") {
       setIsLoading(false)
