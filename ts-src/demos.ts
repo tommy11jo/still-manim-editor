@@ -148,16 +148,15 @@ def gen_fading_eyes(rotate=False):
 
 def get_intro_row():
     row = Group()
-    p1_text = Text("""Manim is python library for creating math animations, created by 3blue1brown and used in his youtube videos. 
-While it's designed for animations, it can also be used for creating static graphics like this comic.""")
+    p1_text = Text("""The math animation library Manim is a surprisingly good option for creating static diagrams for math and programming concepts.
+Created by 3blue1brown and used in his youtube videos, Manim can render animations of lines, number lines, cartesian graphs, plots on those graphs, and much more.""")
     fading_eyes = gen_fading_eyes()
     fading_eyes.next_to(p1_text, DOWN, buff=0.3)
     intro_p1 = Group(p1_text, fading_eyes)
     intro_p1.next_to(title, DOWN, buff=PBUFF).align_to(canvas.left, LEFT, buff=PBUFF)
     row.add(intro_p1)
-    p2_text = Text("""Why not use existing tools to create static graphics?
-Such as direct manipulators like Powerpoint or Figma; standard web dev tools like HTML and CSS; or programmatic tools like TikZ or Penrose?
-What does Manim have that these don't?""")
+    p2_text = Text("""When creating static graphics, what does Manim have that existing tools don't?
+Why not use direct manipulators like Powerpoint or Figma; standard web dev tools like HTML and CSS; or programmatic tools like TikZ or Penrose?""")
     balance = Triangle().scale(0.3).stretch(0.5, dim=0)
     top_vertex = balance.vertices[0]
     start_line = Line(start=2 * LEFT, end=top_vertex)
@@ -269,9 +268,10 @@ With relative positioning commands, you can place objects in relation to each ot
 feature_row = gen_features_row()
 
 def gen_more_features_row():
-    p1_text = Text("""Manim also has analogs to the WYSIWYG features of positioning, styling, layering, and grouping.
-What might have existed in a right-click menu or a user interface exists in Manim as a function call.""")
-    command_text = Text("shape_group.bring_to_front(circle)").align_to(p1_text, LEFT)
+    p1_text = Text("""Manim has programmatic analogs to many of the features in typical direct manipulation editors like Powerpoint and Figma.
+Positioning, styling, layering, and grouping can all be achieved directly in code.
+What might have existed in a right click menu or a button within a user interface exists in Manim as a function call.""")
+    command_text = Text("shape_group.bring_to_front(circle)")
     c = Circle(color=RED).shift(0.5)
     s = Square()
     orig1 = Group(c, s)
@@ -281,27 +281,35 @@ What might have existed in a right-click menu or a user interface exists in Mani
     transformed1 = Group(c2, s2).next_to(orig1, buff=1.0)
     transformed1.bring_to_front(c2)
     arrow = Arrow(orig1, transformed1, buff=0.1)
-    p1_graphic1 = Group(command_text, orig1, transformed1, arrow).next_to(p1_text, DOWN, buff=0.4)
+    p1_graphic1 = Group(command_text, orig1, transformed1, arrow)
+    p1_graphic1.scale(0.7).next_to(p1_text, DOWN)
 
     command2_text = Text("shape_group.set_color(GREEN)").next_to(p1_graphic1, DOWN, buff=0.2)
-    orig2 = orig1.copy().next_to(command2_text, DOWN, LEFT)
-    c3, s3 = c.copy(), s.copy()
-    transformed2 = Group(c3, s3).set_color(GREEN).next_to(orig2, buff=1.0)
+    c3 = Circle(color=RED).shift(0.5)
+    s3 = Square()
+    c4 = c3.copy()
+    s4 = s3.copy()
+    orig2 = Group(c3, s3).next_to(command2_text, DOWN, LEFT)
+    transformed2 = Group(c4, s4).set_color(GREEN).next_to(orig2, buff=1.0)
     arrow2 = Arrow(orig2, transformed2, buff=0.1)
-    p1_graphic2 = Group(command2_text, orig2, transformed2, arrow2).next_to(p1_graphic1, DOWN)
-    p1_graphic = Group(p1_graphic1, p1_graphic2).scale(0.7)
+    p1_graphic2 = Group(command2_text, orig2, transformed2, arrow2)
+    p1_graphic2.scale(0.7).next_to(p1_graphic1, DOWN)
+    p1_graphic = Group(p1_graphic1, p1_graphic2)
 
     extra_note = Text("Note: the 'bring_to_front' syntax differs from Manim slightly. This is syntax for Still Manim.", font_size=12)
     extra_note.next_to(p1_graphic, DOWN, buff=0.3)
     p1 = Group(p1_text, p1_graphic, extra_note)
 
     p2_text = Text("""Despite having a lot of nice features for static graphics, Manim is designed for animations.
-To render a character of text in Manim, the character is transformed to an svg which is transformed to a list of mobjects which store the underlying shape of the character as points that represent bezier curves so that a graphics library called cairo can finally draw the character. Pretty compute intensive for just text.
-And wrapping text, like what you're reading now, isn't a standard capability.""")
+To render a character of text in Manim, the character is transformed to an svg which is transformed to a list of mobjects which store the underlying shape of the character as points that represent bezier curves so that a graphics library called cairo can finally draw the character.""")
     p2_graphic = Lambda().scale(3).next_to(p2_text, DOWN, buff=0.3)
     for point in p2_graphic.points:
         p2_graphic.add(Dot(point, radius=0.03, color=BLUE))
-    p2 = Group(p2_text, p2_graphic)
+
+    p2_text_below = Text("""Pretty compute intensive for just text, take a look at all the dots for just a lambda character.
+And wrapping text, like what you're reading now, isn't a standard capability.""")
+    p2_text_below.next_to(p2_graphic, DOWN, buff=0.3)
+    p2 = Group(p2_text, p2_text_below, p2_graphic)
     p2.next_to(p1, RIGHT, UP, buff=PBUFF)
     return Group(p1, p2)
 
@@ -341,7 +349,7 @@ def gen_smanim_intro_row():
         lemons.scale_to_fit_height(title.height)
         title.next_to(lemons, buff=0.05)
         return Group(title, lemons)
-    p1_text = Text("""For those reasons, I built Still Manim, a variant of Manim that is designed for static pictures rather than animations.
+    p1_text = Text("""So, I built Still Manim, a variant of Manim that is designed for *still* pictures rather than animations.
 Still Manim is a python library for drawing domain-specific static graphics for math and programming.
 It's *still* Manim in that it has a lot of the same user-facing abstractions as the original Manim.
 But Still Manim handles text differently, outputs SVGs rather than PNGs, and can run in the browser.""", max_width=ROW_WIDTH)
@@ -378,15 +386,15 @@ canvas.add(complex_examples_row)
 def gen_towards_llm_row():
     p1_text = Text("""Today, these graphics take a lot of time to create.
 I've used about 250 lines of code to create everything up until the text you're reading now.
-But a neat property that distinguishes Still Manim from other diagramming tools is that I could write nearly all of this code without actually seeing the diagram.""")
+But a neat property of Still Manim code is that it can be authored somewhat reliably without seeing the diagram it constructs.""")
     fading_eyes2 = gen_fading_eyes(rotate=True)
     fading_eyes2.next_to(p1_text, DOWN, buff=0.3)
     p1 = Group(p1_text, fading_eyes2)
     canvas.add(p1)
     p2_text = Text("""Now who would want to create a graphic without seeing the code?
-    And who would be willing to do the tedious work to produce good style and layout?""")
+And who would be willing to do the tedious work to produce good style and layout?""")
     question_text = Text("?", font_size=80).next_to(p2_text, DOWN)
-    answer_text = Text("""Answer: A large language model. Could Still Manim act as a whiteboard for LLM tutors? Maybe in the future.""")
+    answer_text = Text("""Answer: A large language model. Still Manim could act as a (one-way) whiteboard for LLM tutors in the near future.""")
     answer_text.next_to(question_text, DOWN).align_to(p2_text, LEFT)
     p2 = Group(p2_text, question_text, answer_text)
     p2.next_to(p1, RIGHT, UP, buff=PBUFF)
@@ -400,11 +408,11 @@ canvas.add(towards_llm_row)
 
 def gen_future_goals_row():
     p1_text = Text("""
-    Right now, I'm interested in using LLMs as an assistant to help a human user incrementally edit diagrams.
-    The user would optionally point at objects on the diagram, describe a change to the diagram in words, and the LLM would edit the code.
-    I've built a web editor for writing Still Manim code, a website called iDraw which is where I made this comic.
-    Next, I'll experiment with using LLMs to edit code written in Still Manim.
-    Stay tuned.""", max_width=ROW_WIDTH)
+Right now, I'm interested in using LLMs as an assistant to help a human user incrementally edit diagrams.
+The plan is for the user to optionally point at objects on the diagram and describe a change to the diagram in words and for the LLM to edit the code that constructs the diagram.
+So far, I've built a web editor for writing Still Manim code, a website called iDraw (at idraw.chat).
+Next, I'll experiment with using LLMs to edit code written in Still Manim.
+Stay tuned.""", max_width=ROW_WIDTH)
     robot = Text("🤖").scale(2).rotate_in_place(PI / 2)
     robot2 = robot.copy().scale(2).rotate_in_place(-PI / 4)
     robot3 = robot.copy().scale(4).rotate_in_place(-PI / 2)
@@ -415,5 +423,4 @@ future_goals_row = gen_future_goals_row()
 future_goals_row.next_to(towards_llm_row, DOWN, LEFT, buff=PBUFF)
 canvas.add(future_goals_row)
 canvas.draw()
-
 `

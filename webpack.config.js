@@ -45,6 +45,11 @@ module.exports = {
         "/public",
         express.static(path.join(__dirname, "public"))
       )
+      // required for the web worker
+      devServer.app.use(
+        "/scripts",
+        express.static(path.join(__dirname, "ts-src"))
+      )
 
       return middlewares
     },
@@ -56,7 +61,10 @@ module.exports = {
     }),
     new MiniCssExtractPlugin(),
     new CopyPlugin({
-      patterns: [{ from: "./public/", to: "./public" }],
+      patterns: [
+        { from: "./public/", to: "./public" },
+        { from: "./ts-src/pyodideWorker.js", to: "./scripts/pyodideWorker.js" },
+      ],
     }),
   ],
 }

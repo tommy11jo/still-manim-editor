@@ -13,33 +13,10 @@ import { useSvgDownloader } from "./svgDownloader"
 import { useSelection } from "./SelectionContext"
 
 import CodeEditor from "./Editor"
-
-declare global {
-  interface Window {
-    loadPyodide: Function
-    textMeasureCtx: CanvasRenderingContext2D
-    sendTextForMeasurement: Function
-  }
-}
-
-interface Pyodide {
-  loadPackage: (packages: string[] | string) => Promise<void>
-  runPython: (code: string, options?: Record<string, any>) => any
-  unpackArchive: Function
-  pyimport: Function
-  setDebug: Function
-  FS: any
-  globals: Record<string, any>
-}
+import { INIT_CODE, usePyodideWebWorker } from "./PyodideWebWorkerContext"
 
 const REFRESH_RATE = 300 // refresh every 300ms
 const CODE_SAVE_RATE = 3000 // save every 3s
-
-const INIT_CODE = `from smanim import *
-c = Circle()
-canvas.add(c)
-canvas.draw()
-`
 
 const DEMO_MAP = {
   smanim_intro: SMANIM_INTRO,
@@ -47,11 +24,6 @@ const DEMO_MAP = {
   selection_demo: IDRAW_SELECTION_DEMO,
   sin_and_cos: SIN_AND_COS_DEMO,
 }
-const DEFAULT_FS_DIR = "/home/pyodide/media"
-// micropip does not support local file system, but I could load my local dev wheel into the virtual file system
-const SMANIM_WHEEL =
-  "https://test-files.pythonhosted.org/packages/01/3c/875e2ded3da5af44085edf1fd341219720ba7423be9567ff4c76e2cf2e61/still_manim-1.0.0-py3-none-any.whl"
-
 function randId(): string {
   const length = 10
   let result = ""
@@ -66,31 +38,38 @@ function randId(): string {
   return result
 }
 const App = () => {
+  const { attachSelectionListeners, lineNumbersToHighlight } = useSelection()
+
   const {
-    attachSelectionListeners,
-    needsCanvasClickListener,
-    lineNumbersToHighlight,
-  } = useSelection()
+    code,
+    runPythonCodeInWorker,
+    metadataMapStr,
+    svgContent,
+    isBidirectional,
+    setIsBidirectional,
+    pyodideLoadTimeInSeconds,
+    graphicRunTimeInSeconds,
+    output,
+    setOutput,
+    errorMessage,
+    setErrorMessage,
+    errorLine,
+    setErrorLine,
+    pyodideRunStatus,
+  } = usePyodideWebWorker()
 
   const [isLoading, setIsLoading] = useState(false)
-  const [pyodideLoadTimeInSeconds, setPyodideLoadTimeInSeconds] = useState(0)
-  const [graphicRunTimeInSeconds, setGraphicRunTimeInSeconds] = useState(0)
   const [canvasRef, setCanvasRef] = useState<HTMLDivElement | null>(null)
   const width = useRef(100)
   const height = useRef(100)
 
-  const [pyodide, setPyodide] = useState<Pyodide | null>(null)
-  const [output, setOutput] = useState("")
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [errorLine, setErrorLine] = useState<number | null>(null)
+  const [waitingForExecution, setWaitingForExecution] = useState(false)
   const [title, setTitle] = useState("")
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false)
-  const code = useRef<string>(INIT_CODE)
   const [codeSaved, setCodeSaved] = useState(true)
 
   const redrawInProgress = useRef(false)
   const [codeSaveInProgress, setCodeSaveInProgress] = useState(false)
-
   // invariants: if name exists in filenames, then name exists as key in nameToBlob
   // if blob id exists as value in nameToBlob, then blob id exists as key in blobToContent
   const [filenames, setFilenames] = useState<string[]>([])
@@ -99,15 +78,6 @@ const App = () => {
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const { downloadSvg, downloadSvgAsPng } = useSvgDownloader()
-
-  // for complex graphics, using bidirectional editing with settrace is a 4x slowdown
-  const [isBidirectional, setIsBidirectional] = useState(false)
-  useEffect(() => {
-    if (isBidirectional) {
-      const metadata = runCurrentCode(code.current, pyodide)
-      attachSelectionListeners(metadata)
-    }
-  }, [isBidirectional])
 
   // hard reset used for testing
   // localStorage.clear()
@@ -144,6 +114,7 @@ const App = () => {
       if (curTitle === undefined || curNameToBlob == undefined) return
       const blobId = curNameToBlob[curTitle]
       code.current = curBlobToContent[blobId]
+      setWaitingForExecution(true)
     }
     // invariant: title is guaranteed to be updated within 3 seconds of mounting, so the first save will use the updated title
   }, [])
@@ -179,100 +150,15 @@ const App = () => {
   }, [])
 
   useEffect(() => {
-    const loadAndRun = async () => {
-      setIsLoading(true)
-      const startTime = performance.now()
-
-      try {
-        // Known non-breaking bug with pyodide and monaco: https://github.com/microsoft/monaco-editor/issues/4384
-        // Ideally I'd like to show the code even if pyodide is still loading. So I'm waiting on this bug fix.
-        const loadedPyodide = (await window.loadPyodide()) as Pyodide
-        loadedPyodide.runPython(`
-import sys
-print('Python version:', sys.version)`)
-        await loadedPyodide.loadPackage(["micropip"])
-
-        const micropip = loadedPyodide.pyimport("micropip")
-        await micropip.install(SMANIM_WHEEL)
-        loadedPyodide.pyimport("smanim")
-        setPyodide(loadedPyodide)
-
-        const metadata = runCurrentCode(code.current, loadedPyodide)
-        if (isBidirectional) attachSelectionListeners(metadata)
-
-        setIsLoading(false)
-        const endTime = performance.now()
-        setPyodideLoadTimeInSeconds((endTime - startTime) / 1000)
-      } catch (error) {
-        console.error("Failed to load Pyodide and run init python code:", error)
-      }
+    if (waitingForExecution) runPythonCodeInWorker()
+  }, [waitingForExecution])
+  useEffect(() => {
+    if (pyodideRunStatus !== "none") {
+      setIsLoading(false)
     }
-    if (canvasRef !== null && !pyodide) loadAndRun()
-  }, [canvasRef, isBidirectional, pyodide])
-
-  const runCurrentCode = (
-    curCode: string,
-    pyodide: Pyodide | null
-  ): MobjectMetadataMap => {
-    if (!pyodide) {
-      console.error("pyodide not loaded yet")
-      return {}
-    }
-    if (!curCode) return {}
-    const startTime = performance.now()
-    try {
-      // Clear global namespace except for built-in and imported modules
-      // Note: "from smanim import *"" must now be included in the user's file to repeatedly bring the names into the current file's global namespace
-      // Typical drawings take between 0.05 and 0.30s to render
-      // also resets bidirectional global state
-      // must reset CONFIG and canvas manually here
-      pyodide.runPython(`
-import sys
-from smanim.bidirectional.bidirectional import reset_bidirectional
-from smanim.config import CONFIG 
-from smanim.canvas import reset_canvas 
-reset_bidirectional()
-CONFIG.reset_config()
-reset_canvas()
-for name in list(globals()):
-    if not name.startswith('__') and name not in sys.modules:
-        del globals()[name]
-    `)
-      // since the __file__ var and the file lines are not accessible when running with pyodide, we need to manually set them
-      // see that <exec> is the correct name by running:
-      // print('name is', inspect.currentframe().f_code.co_filename)
-      // encoding to base64 allows me to avoid breaking on quotes or triple quotes
-      const utf8Encode = new TextEncoder()
-      const curCodeEncoded = btoa(
-        String.fromCharCode(...utf8Encode.encode(curCode))
-      )
-
-      pyodide.runPython(`
-from smanim.bidirectional.custom_linecache import CustomLineCache
-import base64
-decoded_code = base64.b64decode("${curCodeEncoded}").decode("utf-8")
-CustomLineCache.cache("<exec>", decoded_code)`)
-
-      // setup the tracing of var assignments
-      // https://stackoverflow.com/questions/55998616/how-to-trace-code-run-in-global-scope-using-sys-settrace
-      let result: string
-      if (isBidirectional) {
-        pyodide.runPython(`
-from smanim.bidirectional.bidirectional import global_trace_assignments, trace_assignments
-sys._getframe().f_trace = global_trace_assignments
-sys.settrace(trace_assignments)`)
-
-        result = pyodide.runPython(curCode)
-        pyodide.runPython(`
-sys._getframe().f_trace = None
-sys.settrace(None)
-`)
-      } else {
-        result = pyodide.runPython(curCode)
-      }
-
-      const endTime = performance.now()
-      setGraphicRunTimeInSeconds((endTime - startTime) / 1000)
+  }, [pyodideRunStatus])
+  useEffect(() => {
+    const afterRunCompletion = (result: string) => {
       if (!result) {
         setOutput(
           "Make sure that canvas.draw() is the last line of the program."
@@ -281,86 +167,50 @@ sys.settrace(None)
       }
       const jsonResult = JSON.parse(result)
       const bbox = jsonResult["bbox"]
-      const metadata: MobjectMetadataMap = jsonResult["metadata"]
+      const metadataMap: MobjectMetadataMap = jsonResult["metadata"]
       width.current = bbox[2]
       height.current = bbox[3]
 
       setOutput("")
       setErrorLine(null)
       setErrorMessage(null)
-      const svgContent = pyodide.FS.readFile(`${DEFAULT_FS_DIR}/test0.svg`, {
-        encoding: "utf8",
-      })
+
       canvasRef!.innerHTML = svgContent
-
-      return metadata
-    } catch (error) {
-      if (error instanceof Error) {
-        const pattern = /(.*\^){8,}/g
-        const errorStr = error.message
-        console.error(errorStr)
-        const lineRegex = /File "<exec>", line (\d+)/ // Regular expression to find "line number"
-        const lineMatch = lineRegex.exec(errorStr)
-        if (lineMatch) {
-          setErrorLine(parseInt(lineMatch[1]))
-          setErrorMessage(errorStr)
-        } else {
-          console.error("Could not find line match in error message")
-        }
-
-        let lastMatch
-        let match
-
-        while ((match = pattern.exec(errorStr)) !== null) {
-          lastMatch = match
-        }
-
-        if (lastMatch !== undefined) {
-          const endIndex = lastMatch.index + lastMatch[0].length
-          let customOutput = ""
-          if (lineMatch && lineMatch.length === 2)
-            customOutput += "An error occured on line " + lineMatch[1] + ":\n"
-          customOutput += errorStr.substring(endIndex)
-          setOutput(customOutput)
-        } else {
-          setOutput(error.message)
-        }
-      } else {
-        setOutput(String(error))
+      if (isBidirectional) {
+        attachSelectionListeners(metadataMap)
       }
-      return {}
+      return metadataMap
     }
-  }
+    if (metadataMapStr) {
+      afterRunCompletion(metadataMapStr)
+    }
+    // change of metadataMapStr indicates successful new run
+  }, [metadataMapStr])
+
+  const runPythonCodeInWorkerRef = useRef(runPythonCodeInWorker)
+  runPythonCodeInWorkerRef.current = runPythonCodeInWorker
+  // Use the most recent runPythonCodeInWorker function but don't allow it to trigger this effect
+  useEffect(() => {
+    if (isBidirectional) {
+      runPythonCodeInWorkerRef.current()
+    }
+  }, [isBidirectional])
 
   const triggerRedraw = useCallback(() => {
     // this fn attach listeners so mobjects can be selected
     if (canvasRef === null) return
     if (!isAutoRefreshing) {
-      const metadata = runCurrentCode(code.current, pyodide)
-      if (isBidirectional) {
-        attachSelectionListeners(metadata)
-      }
+      runPythonCodeInWorker()
     } else {
       if (!redrawInProgress.current) {
         redrawInProgress.current = true
         setTimeout(() => {
-          const metadata = runCurrentCode(code.current, pyodide)
-          if (isBidirectional) {
-            attachSelectionListeners(metadata)
-          }
+          runPythonCodeInWorker()
           redrawInProgress.current = false
         }, REFRESH_RATE)
       }
     }
-  }, [
-    canvasRef,
-    isAutoRefreshing,
-    code,
-    isBidirectional,
-    pyodide,
-    runCurrentCode,
-    attachSelectionListeners,
-  ])
+  }, [canvasRef, isAutoRefreshing, isBidirectional, runPythonCodeInWorker])
 
   const triggerCodeSave = useCallback(() => {
     if (!codeSaveInProgress) {
@@ -397,21 +247,13 @@ sys.settrace(None)
     }
   }, [title, codeSaveInProgress, filenames])
 
-  const openExistingFile = useCallback(
-    (title: string) => {
-      if (!pyodide) return
-      setTitle(title)
-      setCodeSaved(true)
-      const blobId = nameToBlob[title]
-      code.current = blobToContent[blobId]
-      const metadata = runCurrentCode(code.current, pyodide)
-      if (isBidirectional) {
-        needsCanvasClickListener.current = true
-        attachSelectionListeners(metadata)
-      }
-    },
-    [nameToBlob, blobToContent, attachSelectionListeners, pyodide]
-  )
+  const openExistingFile = (title: string) => {
+    setTitle(title)
+    setCodeSaved(true)
+    const blobId = nameToBlob[title]
+    code.current = blobToContent[blobId]
+    runPythonCodeInWorker()
+  }
 
   const handleKeyDownTitle = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
@@ -450,22 +292,21 @@ sys.settrace(None)
     localStorage.setItem("blobToContent", JSON.stringify(blobToContent))
   }
 
-  const generateNewFile = (newTitle?: string, newCode?: string) => {
-    saveCurrentOpenFile(title, code.current)
-    if (newTitle) {
-      const newName = nextAvailableFilename(filenames, newTitle)
-      setTitle(newName)
-    } else {
-      const newName = nextAvailableFilename(filenames)
-      setTitle(newName)
-    }
-    code.current = newCode ? newCode : INIT_CODE
-    const metadata = runCurrentCode(code.current, pyodide)
-    if (isBidirectional) {
-      needsCanvasClickListener.current = true
-      attachSelectionListeners(metadata)
-    }
-  }
+  const generateNewFile = useCallback(
+    (newTitle?: string, newCode?: string) => {
+      saveCurrentOpenFile(title, code.current)
+      if (newTitle) {
+        const newName = nextAvailableFilename(filenames, newTitle)
+        setTitle(newName)
+      } else {
+        const newName = nextAvailableFilename(filenames)
+        setTitle(newName)
+      }
+      code.current = newCode ? newCode : INIT_CODE
+      runPythonCodeInWorker()
+    },
+    [title, runPythonCodeInWorker]
+  )
   const deleteCurrentFile = () => {
     setFilenames((filenames) => filenames.filter((fname) => fname !== title))
     const blobId = nameToBlob[title]
@@ -485,18 +326,11 @@ sys.settrace(None)
   }
 
   const handleDownloadSvg = () => {
-    if (!pyodide) return
-    const svgContent = pyodide.FS.readFile(`${DEFAULT_FS_DIR}/test0.svg`, {
-      encoding: "utf8",
-    })
-    downloadSvg(title, svgContent)
+    if (svgContent !== null) downloadSvg(title, svgContent)
   }
   const handleDownloadPng = () => {
-    if (!pyodide) return
-    const svgContent = pyodide.FS.readFile(`${DEFAULT_FS_DIR}/test0.svg`, {
-      encoding: "utf8",
-    })
-    downloadSvgAsPng(title, svgContent, width.current, height.current)
+    if (svgContent !== null)
+      downloadSvgAsPng(title, svgContent, width.current, height.current)
   }
 
   useEffect(() => {
@@ -741,7 +575,7 @@ sys.settrace(None)
               maxWidth: "100%",
             }}
           >
-            {pyodide ? (
+            {pyodideRunStatus !== "none" ? (
               <CodeEditor
                 code={code}
                 setCodeSaved={setCodeSaved}
@@ -772,19 +606,35 @@ sys.settrace(None)
           </div>
         </div>
 
-        <div style={{ flex: 1, backgroundColor: "#f5f5f5", padding: "0.3rem" }}>
+        <div style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
           {canvasRef === null || (isLoading && <div>Loading...</div>)}
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
               flex: 1,
+              backgroundColor:
+                pyodideRunStatus === "success"
+                  ? "rgba(0, 128, 0, 0.1)"
+                  : pyodideRunStatus === "error"
+                  ? "rgba(255, 0, 0, 0.1)"
+                  : "none",
+
+              padding: "0.3rem",
+              color: "black",
             }}
           >
             {canvasRef !== null && (
-              <span className="muted-text" style={{ alignSelf: "center" }}>
-                {codeSaved ? "Saved" : "Unsaved"}
-              </span>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                }}
+              >
+                <span>{codeSaved ? "Saved" : "Unsaved"}</span>
+                <span>Status: {pyodideRunStatus}</span>
+              </div>
             )}
             <div
               style={{
@@ -814,6 +664,7 @@ sys.settrace(None)
                 flexDirection: "column",
                 alignItems: "center",
                 gap: "0.3rem",
+                padding: "0.3rem",
               }}
             >
               <span className="action-text" onClick={handleDownloadSvg}>

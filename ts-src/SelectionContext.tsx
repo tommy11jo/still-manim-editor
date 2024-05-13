@@ -197,27 +197,14 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
 
       element.addEventListener("click", (event) => {
         if (event.metaKey || event.ctrlKey) {
-          if (!commandClickSequenceStarted.current) {
-            resetFromPreviousSelection(mobjectId, metadataMap)
-            const highlightedElements =
-              document.querySelectorAll(".smanim-highlights")
-            highlightedElements.forEach((element) => element.remove())
-            commandClickSequenceStarted.current = true
-          }
-          if (selectedMobjectIds.current.includes(mobjectId)) {
-            selectedMobjectIds.current = selectedMobjectIds.current.filter(
-              (id) => id !== mobjectId
-            )
-          } else {
-            selectedMobjectIds.current.push(mobjectId)
-          }
+          commandClickSequenceStarted.current = true
+          selectedMobjectIds.current.push(mobjectId)
         } else {
           commandClickSequenceStarted.current = false
           resetFromPreviousSelection(mobjectId, metadataMap)
           const highlightedElements =
             document.querySelectorAll(".smanim-highlights")
           highlightedElements.forEach((element) => element.remove())
-
           selectedMobjectIds.current = [mobjectId]
         }
 

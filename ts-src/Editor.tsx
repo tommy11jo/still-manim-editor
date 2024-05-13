@@ -50,7 +50,8 @@ const CodeEditor: React.FC<EditorProps> = React.forwardRef(
     }, [title])
 
     const workerRef = useRef<Worker | null>(null)
-
+    // prevents freezing editor when user spams "Enter" key
+    const actionRunning = useRef(false)
     useEffect(() => {
       if (monaco) {
         monaco.editor.defineTheme("customTheme", {
@@ -64,7 +65,6 @@ const CodeEditor: React.FC<EditorProps> = React.forwardRef(
         monaco.editor.setTheme("customTheme")
 
         // Note that I have another listener for this key command attached to the window, but it gets overridden by monaco so I need this listener too
-        // TODO: Why is this other listener still not working?
         const executeCode = {
           id: "run-code",
           label: "Run Code",
@@ -72,8 +72,12 @@ const CodeEditor: React.FC<EditorProps> = React.forwardRef(
           contextMenuGroupId: "1_modification",
           keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
           run: () => {
-            triggerRedraw()
-            triggerCodeSave()
+            if (!actionRunning.current) {
+              actionRunning.current = true
+              triggerRedraw()
+              triggerCodeSave()
+              actionRunning.current = false
+            }
           },
         }
         monaco.editor.addEditorAction(executeCode)
