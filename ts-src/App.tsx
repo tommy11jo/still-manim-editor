@@ -3,6 +3,7 @@ import "./index.css"
 
 import { MobjectMetadataMap } from "./types"
 import {
+  GRAPH_DEMO,
   IDRAW_SELECTION_DEMO,
   LEMON_DEMO,
   SIN_AND_COS_DEMO,
@@ -24,6 +25,7 @@ const DEMO_MAP = {
   lemon_logo: LEMON_DEMO,
   selection_demo: IDRAW_SELECTION_DEMO,
   sin_and_cos: SIN_AND_COS_DEMO,
+  graph_demo: GRAPH_DEMO,
 }
 function randId(): string {
   const length = 10
@@ -53,9 +55,7 @@ const App = () => {
     output,
     setOutput,
     errorMessage,
-    setErrorMessage,
     errorLine,
-    setErrorLine,
     pyodideRunStatus,
   } = usePyodideWebWorker()
 
@@ -78,6 +78,13 @@ const App = () => {
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const { downloadSvg, downloadSvgAsPng } = useSvgDownloader()
+
+  const [isMac, setIsMac] = useState(false)
+
+  useEffect(() => {
+    const userAgent = window.navigator.userAgent.toLowerCase()
+    setIsMac(userAgent.indexOf("mac") !== -1)
+  }, [])
 
   // clear cookies to reset storage for testing
   // keep local storage in sync with state vars for managinng filenames, blob ids, and file content
@@ -191,10 +198,6 @@ const App = () => {
       const metadataMap: MobjectMetadataMap = jsonResult["metadata"]
       width.current = bbox[2]
       height.current = bbox[3]
-
-      setOutput("")
-      setErrorLine(null)
-      setErrorMessage(null)
 
       canvasRef!.innerHTML = svgContent
       if (isBidirectional) {
@@ -403,7 +406,7 @@ const App = () => {
           Still Manim
         </div>
         <a
-          href="https://github.com/tommy11jo/still-manim"
+          href="https://github.com/tommy11jo/still-manim-editor"
           target="_blank"
           rel="noopener noreferrer"
           style={{ marginLeft: "auto", textDecoration: "none" }}
@@ -490,12 +493,6 @@ const App = () => {
             <label>Auto-Refresh</label>
           </div>
 
-          <div>
-            <span className="muted-text">
-              Or, press Command + Enter (mac) or Control + Enter (windows) to
-              save and run{" "}
-            </span>
-          </div>
           <input
             type="checkbox"
             checked={isBidirectional}
@@ -505,6 +502,11 @@ const App = () => {
             }}
           />
           <label>Bidirectional</label>
+          <div>
+            <span className="muted-text">
+              Press {isMac ? "Command" : "Control"} + Enter to save and run{" "}
+            </span>
+          </div>
         </div>
       </div>
 

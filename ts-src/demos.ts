@@ -52,7 +52,7 @@ PWIDTH = WIDTH / 2 - 1 # panel width
 PBUFF = 0.5
 canvas.set_dimensions(WIDTH, HEIGHT)
 
-title = Text("Welcome to iDraw, a website for creating graphics with code and natural language commands", font_size=H2_FONT_SIZE)
+title = Text("(Coming Soon) Welcome to iDraw, a website for creating graphics with code and natural language commands", font_size=H2_FONT_SIZE)
 title.align_to(canvas.top, edge=UP, buff=0.5)
 canvas.add(title)
 
@@ -350,7 +350,7 @@ def gen_smanim_intro_row():
         title.next_to(lemons, buff=0.05)
         return Group(title, lemons)
     p1_text = Text("""So, I built Still Manim, a variant of Manim that is designed for *still* pictures rather than animations.
-Still Manim is a python library for drawing domain-specific static graphics for math and programming.
+Still Manim is a python library for drawing static graphics of conceptual content in domains like math and programming.
 It's *still* Manim in that it has a lot of the same user-facing abstractions as the original Manim.
 But Still Manim handles text differently, outputs SVGs rather than PNGs, and can run in the browser.""", max_width=ROW_WIDTH)
     p1_graphic = get_lemon_logo().scale(2).next_to(p1_text, DOWN, buff=0.3)
@@ -362,7 +362,8 @@ smanim_row.next_to(more_features_row, DOWN, LEFT, buff=PBUFF)
 canvas.add(smanim_row)
 
 def gen_complex_examples_row(): 
-    p1_text = Text("""Still Manim can be used to draw a 2D cartesian plane with a vector or a weighted graph or the comic that you're reading now!""", max_width=ROW_WIDTH)
+    p1_text = Text("""Still Manim is a new codebase so it's missing a lot of the objects and functions in the original Manim, but you can still draw some complex mobjects.
+For example, you can draw a 2D cartesian plane with a vector or a weighted graph or the comic that you're reading now!""", max_width=ROW_WIDTH)
     cartesian = NumberPlane.from_axes_ranges([-2, 2, 1], [-1, 3, 1], x_length=8, y_length=8, fill_canvas=False)
     cartesian.scale(0.6).next_to(p1_text, DOWN, LEFT)
     vector = Arrow(cartesian.coords_to_point(0, 0), cartesian.coords_to_point(1, 2))
@@ -391,7 +392,7 @@ But a neat property of Still Manim code is that it can be authored somewhat reli
     fading_eyes2.next_to(p1_text, DOWN, buff=0.3)
     p1 = Group(p1_text, fading_eyes2)
     canvas.add(p1)
-    p2_text = Text("""Now who would want to create a graphic without seeing the code?
+    p2_text = Text("""Now what sort of programmer would need to create a graphic without seeing it?
 And who would be willing to do the tedious work to produce good style and layout?""")
     question_text = Text("?", font_size=80).next_to(p2_text, DOWN)
     answer_text = Text("""Answer: A large language model. Still Manim could act as a (one-way) whiteboard for LLM tutors in the near future.""")
@@ -422,5 +423,35 @@ Stay tuned.""", max_width=ROW_WIDTH)
 future_goals_row = gen_future_goals_row()
 future_goals_row.next_to(towards_llm_row, DOWN, LEFT, buff=PBUFF)
 canvas.add(future_goals_row)
+canvas.draw()
+`
+
+export const GRAPH_DEMO = `
+from smanim import *
+canvas.set_dimensions(6, 6)
+WEIGHTED_GRAPH1 = {
+    0: [(1, 2), (2, 1)],
+    1: [(2, 5), (3, 11), (4, 3)],
+    2: [(5, 15)],
+    3: [(4, 2)],
+    4: [(2, 1), (5, 4), (6, 5)],
+    5: [],
+    6: [(3, 1), (5, 1)],
+}
+vertices, edges, edge_labels = WeightedGraph.from_adjacency_list(WEIGHTED_GRAPH1)
+graph = WeightedGraph(
+        vertices,
+        edges,
+        vertex_config={"fill_color": GRAY, "radius": 0.2},
+        edge_labels=edge_labels,
+        edge_type=Arrow,
+        layout_config={"seed": 2},
+        include_vertex_labels=True,
+    )
+start_vertex = graph.vertices[0]
+start_vertex.set_color(RED)
+pointer = Arrow.points_at(start_vertex, direction=LEFT, color=RED, length=0.5)
+start_text = Text("start", color=RED).next_to(pointer)
+canvas.add(graph, pointer, start_text)
 canvas.draw()
 `

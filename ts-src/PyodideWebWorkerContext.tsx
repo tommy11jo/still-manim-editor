@@ -23,9 +23,7 @@ interface PyodideWorkerContextType {
   output: string
   setOutput: (value: string) => void
   errorMessage: string | null
-  setErrorMessage: (value: string | null) => void
   errorLine: number | null
-  setErrorLine: (value: number | null) => void
   pyodideRunStatus: PyodideRunStatus
 
   isBidirectional: boolean
@@ -86,12 +84,15 @@ export const PyodideWorkerProvider: React.FC<React.PropsWithChildren<{}>> = ({
 
       if (event.data.status === "success") {
         setMetadataMapStr(event.data.metadataMapStr)
+        setSvgContent(event.data.svgContent)
         setPyodideRunStatus("success")
+        setOutput("")
+        setErrorLine(null)
+        setErrorMessage(null)
         setGraphicRunTimeInSeconds(event.data.runTimeInSeconds)
         if (event.data.loadTimeInSeconds !== null) {
           setPyodideLoadTimeInSeconds(event.data.loadTimeInSeconds)
         }
-        setSvgContent(event.data.svgContent)
       } else if (event.data.status === "error") {
         const { customOutput, errorLine, errorMessage } =
           handlePythonRuntimeError(event.data.error)
@@ -166,9 +167,7 @@ export const PyodideWorkerProvider: React.FC<React.PropsWithChildren<{}>> = ({
         output,
         setOutput,
         errorMessage,
-        setErrorMessage,
         errorLine,
-        setErrorLine,
         pyodideRunStatus,
       }}
     >
