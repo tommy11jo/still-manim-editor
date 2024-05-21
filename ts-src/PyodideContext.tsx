@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react"
+import { MobjectMetadataMap } from "./types"
 
 type ErrorInfoType = {
   customOutput: string
@@ -12,29 +13,29 @@ type ErrorInfoType = {
   errorMessage: string | null
 }
 type PyodideRunStatus = "success" | "error" | "none" | "running" | "timeout"
-interface PyodideWorkerContextType {
+interface PyodideContextType {
   runPythonCodeInWorker: () => void
-  metadataMapStr: string
+  mobjectMetadataMap: MobjectMetadataMap
+  setMobjectMetadataMap: (value: MobjectMetadataMap) => void
   svgContent: any
   code: React.MutableRefObject<string>
-
   pyodideLoadTimeInSeconds: number
   graphicRunTimeInSeconds: number
+  isBidirectional: boolean
+  setIsBidirectional: (value: boolean) => void
+  width: React.MutableRefObject<number>
+  height: React.MutableRefObject<number>
+
   output: string
   setOutput: (value: string) => void
   errorMessage: string | null
   errorLine: number | null
   pyodideRunStatus: PyodideRunStatus
-
-  isBidirectional: boolean
-  setIsBidirectional: (value: boolean) => void
 }
 
-const PyodideWorkerContext = createContext<
-  PyodideWorkerContextType | undefined
->(undefined)
+const PyodideContext = createContext<PyodideContextType | undefined>(undefined)
 export const usePyodideWebWorker = () => {
-  const context = useContext(PyodideWorkerContext)
+  const context = useContext(PyodideContext)
   if (context === undefined) {
     throw new Error("useSelection must be used within a PyodideWorkerProvider")
   }
@@ -47,7 +48,7 @@ canvas.add(c)
 canvas.draw()
 `
 const WORKER_SCRIPT = "/scripts/pyodideWorker.js"
-export const PyodideWorkerProvider: React.FC<React.PropsWithChildren<{}>> = ({
+export const PyodideProvider: React.FC<React.PropsWithChildren<{}>> = ({
   children,
 }) => {
   // for complex graphics, using bidirectional editing with settrace is a 4x slowdown
@@ -62,8 +63,12 @@ export const PyodideWorkerProvider: React.FC<React.PropsWithChildren<{}>> = ({
   const [output, setOutput] = useState("")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [errorLine, setErrorLine] = useState<number | null>(null)
-  const [metadataMapStr, setMetadataMapStr] = useState("")
+  const [mobjectMetadataMap, setMobjectMetadataMap] =
+    useState<MobjectMetadataMap>({})
   const [svgContent, setSvgContent] = useState<any>(null)
+
+  const width = useRef(100)
+  const height = useRef(100)
   const worker = useRef(new Worker(WORKER_SCRIPT))
 
   const runPythonCodeInWorker = () => {
@@ -79,14 +84,34 @@ export const PyodideWorkerProvider: React.FC<React.PropsWithChildren<{}>> = ({
       isBidirectional: isBidirectional,
     })
 
+    const parseMobjectMetadata = (metadataMapStr: string | null) => {
+      if (metadataMapStr === null) {
+        return {
+          metadataMap: {},
+          output:
+            "Make sure that canvas.draw() is the last line of the program.",
+        }
+      }
+      const jsonResult = JSON.parse(metadataMapStr)
+      const bbox = jsonResult["bbox"]
+      const metadataMap: MobjectMetadataMap = jsonResult["metadata"]
+      width.current = bbox[2]
+      height.current = bbox[3]
+
+      return { metadataMap, output: "" }
+    }
+
     worker.current.onmessage = (event) => {
       clearTimeout(timeoutId)
 
       if (event.data.status === "success") {
-        setMetadataMapStr(event.data.metadataMapStr)
         setSvgContent(event.data.svgContent)
+        const { metadataMap, output } = parseMobjectMetadata(
+          event.data.metadataMapStr
+        )
+        setMobjectMetadataMap(metadataMap)
         setPyodideRunStatus("success")
-        setOutput("")
+        setOutput(output)
         setErrorLine(null)
         setErrorMessage(null)
         setGraphicRunTimeInSeconds(event.data.runTimeInSeconds)
@@ -154,16 +179,19 @@ export const PyodideWorkerProvider: React.FC<React.PropsWithChildren<{}>> = ({
   }, [])
 
   return (
-    <PyodideWorkerContext.Provider
+    <PyodideContext.Provider
       value={{
         code,
         runPythonCodeInWorker,
-        metadataMapStr,
+        mobjectMetadataMap,
+        setMobjectMetadataMap,
         svgContent,
         isBidirectional,
         setIsBidirectional,
         pyodideLoadTimeInSeconds,
         graphicRunTimeInSeconds,
+        width,
+        height,
         output,
         setOutput,
         errorMessage,
@@ -172,6 +200,6 @@ export const PyodideWorkerProvider: React.FC<React.PropsWithChildren<{}>> = ({
       }}
     >
       {children}
-    </PyodideWorkerContext.Provider>
+    </PyodideContext.Provider>
   )
 }

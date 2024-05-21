@@ -4,6 +4,7 @@ import { MobjectMetadataMap } from "./types"
 interface SelectionContextType {
   attachSelectionListeners: (metadata: any) => void
   needsCanvasClickListener: React.MutableRefObject<boolean>
+  selectedMobjectIds: React.MutableRefObject<string[]>
   lineNumbersToHighlight: number[]
 }
 
@@ -247,6 +248,7 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
       value={{
         attachSelectionListeners,
         needsCanvasClickListener,
+        selectedMobjectIds,
         lineNumbersToHighlight,
       }}
     >

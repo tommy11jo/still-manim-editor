@@ -4,7 +4,7 @@ export type Point = [number, number]
 export interface MobjectMetadata {
   //   points: Point[]
   parent: string
-  type: "vmobject" | "text" | "group"
+  type: string
   id: string
   children: string[]
   classname: string

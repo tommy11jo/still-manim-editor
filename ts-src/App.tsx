@@ -14,8 +14,10 @@ import { useSvgDownloader } from "./svgDownloader"
 import { useSelection } from "./SelectionContext"
 
 import CodeEditor from "./Editor"
-import { INIT_CODE, usePyodideWebWorker } from "./PyodideWebWorkerContext"
+import { INIT_CODE, usePyodideWebWorker } from "./PyodideContext"
 import { debounce } from "lodash"
+import ChatBox from "./components/ChatInput"
+import { generateCode } from "./prompting/editApi"
 
 const REFRESH_RATE = 300 // refresh every 300ms
 const CODE_SAVE_RATE = 3000 // save every 3s
@@ -41,19 +43,24 @@ function randId(): string {
   return result
 }
 const App = () => {
-  const { attachSelectionListeners, lineNumbersToHighlight } = useSelection()
+  const {
+    attachSelectionListeners,
+    lineNumbersToHighlight,
+    selectedMobjectIds,
+  } = useSelection()
 
   const {
     code,
     runPythonCodeInWorker,
-    metadataMapStr,
+    mobjectMetadataMap,
     svgContent,
     isBidirectional,
     setIsBidirectional,
     pyodideLoadTimeInSeconds,
     graphicRunTimeInSeconds,
+    width,
+    height,
     output,
-    setOutput,
     errorMessage,
     errorLine,
     pyodideRunStatus,
@@ -61,8 +68,6 @@ const App = () => {
 
   const [isLoading, setIsLoading] = useState(false)
   const [canvasRef, setCanvasRef] = useState<HTMLDivElement | null>(null)
-  const width = useRef(100)
-  const height = useRef(100)
 
   const [waitingForExecution, setWaitingForExecution] = useState(false)
   const [title, setTitle] = useState("")
@@ -77,6 +82,9 @@ const App = () => {
   const [blobToContent, setBlobToContent] = useState<Record<string, string>>({})
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false)
+  const [apiKey, setApiKey] = useState("")
+  const [tempApiKey, setTempApiKey] = useState("")
   const { downloadSvg, downloadSvgAsPng } = useSvgDownloader()
 
   const [isMac, setIsMac] = useState(false)
@@ -85,7 +93,6 @@ const App = () => {
     const userAgent = window.navigator.userAgent.toLowerCase()
     setIsMac(userAgent.indexOf("mac") !== -1)
   }, [])
-
   // clear cookies to reset storage for testing
   // keep local storage in sync with state vars for managinng filenames, blob ids, and file content
   useEffect(() => {
@@ -101,9 +108,14 @@ const App = () => {
       try {
         const filenamesList = JSON.parse(curFilenamesStr)
         setFilenames(filenamesList)
-        const fname = filenamesList[filenamesList.length - 1]
-        curTitle = fname
-        setTitle(fname)
+        if (filenamesList.length > 1) {
+          const fname = filenamesList[filenamesList.length - 1]
+          curTitle = fname
+          setTitle(fname)
+        } else {
+          const newTitle = nextAvailableFilename([])
+          setTitle(newTitle)
+        }
       } catch {
         throw Error("Error parsing filenames list and setting title")
       }
@@ -185,31 +197,20 @@ const App = () => {
       setIsLoading(false)
     }
   }, [pyodideRunStatus])
-  useEffect(() => {
-    const afterRunCompletion = (result: string): MobjectMetadataMap => {
-      if (!result) {
-        setOutput(
-          "Make sure that canvas.draw() is the last line of the program."
-        )
-        return {}
-      }
-      const jsonResult = JSON.parse(result)
-      const bbox = jsonResult["bbox"]
-      const metadataMap: MobjectMetadataMap = jsonResult["metadata"]
-      width.current = bbox[2]
-      height.current = bbox[3]
 
+  // effects after python run completion
+  useEffect(() => {
+    const afterRunCompletion = () => {
       canvasRef!.innerHTML = svgContent
-      if (isBidirectional) {
-        attachSelectionListeners(metadataMap)
+
+      if (mobjectMetadataMap && isBidirectional) {
+        attachSelectionListeners(mobjectMetadataMap)
       }
-      return metadataMap
     }
-    if (canvasRef !== null && metadataMapStr !== "") {
-      afterRunCompletion(metadataMapStr)
+    if (canvasRef !== null && mobjectMetadataMap !== null) {
+      afterRunCompletion()
     }
-    // change of metadataMapStr indicates successful new run
-  }, [canvasRef, metadataMapStr])
+  }, [canvasRef, mobjectMetadataMap, svgContent])
 
   const runPythonCodeInWorkerRef = useRef(runPythonCodeInWorker)
   runPythonCodeInWorkerRef.current = runPythonCodeInWorker
@@ -311,15 +312,15 @@ const App = () => {
     }
     return newName
   }
-  const saveCurrentOpenFile = (title: string, codeStr: string) => {
-    const currentBlob = nameToBlob[title]
-    blobToContent[currentBlob] = codeStr
-    localStorage.setItem("blobToContent", JSON.stringify(blobToContent))
-  }
+  //   const saveCurrentOpenFile = (title: string, codeStr: string) => {
+  //     const currentBlob = nameToBlob[title]
+  //     blobToContent[currentBlob] = codeStr
+  //     localStorage.setItem("blobToContent", JSON.stringify(blobToContent))
+  //   }
 
   const generateNewFile = useCallback(
     (newTitle?: string, newCode?: string) => {
-      saveCurrentOpenFile(title, code.current)
+      // saveCurrentOpenFile(title, code.current)
       if (newTitle) {
         const newName = nextAvailableFilename(filenames, newTitle)
         setTitle(newName)
@@ -374,6 +375,39 @@ const App = () => {
     }
   }, [triggerRedraw, triggerCodeSave])
 
+  useEffect(() => {
+    const storedKey = localStorage.getItem("openai_api_key") ?? ""
+    setApiKey(storedKey)
+    setTempApiKey(storedKey)
+  }, [])
+
+  const handleApiKeySave = () => {
+    setApiKey(tempApiKey)
+    localStorage.setItem("openai_api_key", tempApiKey)
+    setApiKeyModalOpen(false)
+  }
+  const handleApiKeyCancel = () => {
+    setApiKeyModalOpen(false)
+    setTempApiKey("")
+  }
+
+  const [codeUpdateSignal, setCodeUpdateSignal] = useState(0)
+
+  const sendLanguageCommand = async (command: string) => {
+    const updatedCode = await generateCode(
+      command,
+      code.current,
+      apiKey,
+      selectedMobjectIds.current,
+      mobjectMetadataMap
+    )
+    if (updatedCode) {
+      code.current = updatedCode
+    }
+    triggerRedraw()
+    triggerCodeSave()
+    setCodeUpdateSignal((value) => value + 1)
+  }
   return (
     <div
       style={{
@@ -592,6 +626,41 @@ const App = () => {
               </div>
             </div>
           )}
+          {apiKeyModalOpen && (
+            <div className="modal-container">
+              <div className="modal-content">
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    gap: "0.3rem",
+                    alignItems: "center",
+                    flexDirection: "column",
+                    fontSize: "18px",
+                  }}
+                >
+                  <span>OpenAI API Key</span>
+                  <input
+                    value={tempApiKey}
+                    onChange={(e) => setTempApiKey(e.target.value)}
+                    style={{ width: "100%" }}
+                  />
+                  <div>
+                    <span
+                      onClick={handleApiKeyCancel}
+                      className="action-text"
+                      style={{ paddingRight: "2rem" }}
+                    >
+                      Cancel
+                    </span>
+                    <span onClick={handleApiKeySave} className="action-text">
+                      Save
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <div
             style={{
               flex: "1 1 0%",
@@ -611,6 +680,7 @@ const App = () => {
                 errorMessage={errorMessage}
                 errorLine={errorLine}
                 lineNumbersToHighlight={lineNumbersToHighlight}
+                codeUpdateSignal={codeUpdateSignal}
               />
             ) : (
               "Loading..."
@@ -628,6 +698,23 @@ const App = () => {
             <div>Console:</div>
             <div style={{ whiteSpace: "pre-wrap" }}>{output}</div>
           </div>
+          <span className="muted-text">
+            Notes:
+            <ul>
+              <li>
+                Use canvas.draw(crop=False, ignore_bg=True) to crop to size and
+                ignore the background
+              </li>
+              <li>
+                Hold Command + Click to select multiple mobjects at once on mac.
+                Or Ctrl + Click for windows.
+              </li>
+              <li>
+                All files are stored in local storage. If you reset your
+                cookies, your files will be lost.
+              </li>
+            </ul>
+          </span>
         </div>
 
         <div style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
@@ -701,25 +788,28 @@ const App = () => {
               <span className="action-text" onClick={handleDownloadPng}>
                 Download PNG
               </span>
-              <span className="muted-text">
-                Notes:
-                <ul>
-                  <li>
-                    Use canvas.draw(crop=False, ignore_bg=True) to crop to size
-                    and ignore the background
-                  </li>
-                  <li>
-                    Hold Command + Click to select multiple mobjects at once on
-                    mac. Or Ctrl + Click for windows.
-                  </li>
-                  <li>
-                    All files are stored in local storage. If you reset your
-                    cookies, your files will be lost.
-                  </li>
-                </ul>
-              </span>
             </div>
           )}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "0.3rem",
+              padding: "2rem",
+              borderTop: "1px solid black",
+            }}
+          >
+            <div>
+              <span
+                className="action-text"
+                onClick={() => setApiKeyModalOpen(true)}
+              >
+                Set API Key
+              </span>
+            </div>
+            {apiKey !== "" && <ChatBox handleSend={sendLanguageCommand} />}
+          </div>
         </div>
       </div>
     </div>
