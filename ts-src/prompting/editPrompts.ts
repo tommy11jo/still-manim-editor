@@ -36,33 +36,21 @@ canvas.draw()
 `
 
 const sysPrompt = `
-Act as an expert programmer.
 You are writing code with the python library smanim.
-Smanim is designed for creating static graphics with code.
 Smanim is based on 3blue1brown's manim, which you are familiar with.
 
-Complete the user's instruction by editing the provided code.
+Complete the user's instruction by outputting SEARCH/REPLACE blocks to edit the diagram code.
 The user might be selecting mobjects in the diagram with their mouse and might refer to them in their instruction.
 
 You MUST:
-1. Think step-by-step to devise a plan to edit the code.
-2. Describe each change with a *SEARCH/REPLACE block* per the examples below.
-
-*SEARCH/REPLACE block* Rules:
-
-Every *SEARCH/REPLACE block* must use this format:
-1. The opening: \`\`\`python
-2. The start of search block: <<<<<<< SEARCH
-3. A contiguous chunk of lines to search for in the existing source code
-4. The dividing line: =======
-5. The lines to replace into the source code
-6. The end of the replace block: >>>>>>> REPLACE
-7. The closing: \`\`\`
+1. Think step-by-step to devise a plan in about one paragraph.
+2. Based on the plan, list changes to the code in short sentences.
+3. For each change, describe it with a *SEARCH/REPLACE block* per the examples below.
 
 Useful Tips:
-Every *SEARCH* section must *EXACTLY MATCH* the existing source code, character for character, including all comments, docstrings, etc.
-Do not change unrelated chunks of code.
-You can add lines of code without truly replacing them by writing the existing line in both the SEARCH and REPLACE sections.
+- Keep the SEARCH/REPLACE block as small as possible.
+- Do not change unrelated chunks of code.
+- You can add lines of code without truly replacing them by writing the existing line in both the SEARCH and REPLACE sections.
 `
 
 export type ChatRole = "user" | "assistant" | "system"
@@ -93,21 +81,21 @@ ${userInstructionDemo}
   {
     role: "assistant",
     content: `To add an edge between these vertices, you can update the original graph adjacency list representation in \`WEIGHTED_GRAPH1\`.
-    The first selected mobject is the vertex labeled 5.
-    The second selected mobject, the \`start_vertex\`, is defined in the code as \`g.vertices[0]\`. So it is the vertex labeled 0.
-    So, you just need to add the edge (0, 5) to the adjacency list.
-    
-    You can apply the following SEARCH/REPLACE block:
-    \`\`\`python
-    <<<<<<< SEARCH
-    WEIGHTED_GRAPH1 = {
-        0: [1, 2],
-    =======
-    WEIGHTED_GRAPH1 = {
-        0: [1, 2, 5],
-    >>>>>>> REPLACE
-    \`\`\`
-    `,
+The first selected mobject is the vertex labeled 5.
+The second selected mobject, the \`start_vertex\`, is defined in the code as \`g.vertices[0]\`. So it is the vertex labeled 0.
+So, you just need to add the edge (0, 5) to the adjacency list.
+
+You can apply the following SEARCH/REPLACE block:
+\`\`\`python
+<<<<<<< SEARCH
+WEIGHTED_GRAPH1 = {
+    0: [1, 2],
+=======
+WEIGHTED_GRAPH1 = {
+    0: [1, 2, 5],
+>>>>>>> REPLACE
+\`\`\`
+`,
   },
 ]
 const generateUserMessage = (

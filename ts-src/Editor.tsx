@@ -9,10 +9,13 @@ type EditorProps = {
   triggerCodeSave: Function
   isAutoRefreshing: boolean
   editorHeight: string
-  errorMessage?: string | null
-  errorLine?: number | null
+  errorMessage: string | null
+  errorLine: number | null
   lineNumbersToHighlight: number[]
-  codeUpdateSignal: number
+  overridingContent: string // used for programmatic responses to change editor content without breaking edit history
+  setOverridingContent: (value: string) => void
+  requiresUndoAndRefresh: boolean // used to undo a language command
+  setRequiresUndoAndRefresh: (value: boolean) => void
 }
 
 // Known Bug in Monaco when resizing in chrome or edge: https://github.com/microsoft/monaco-editor/issues/4311
@@ -28,7 +31,10 @@ const CodeEditor: React.FC<EditorProps> = ({
   errorMessage,
   errorLine,
   lineNumbersToHighlight,
-  codeUpdateSignal,
+  overridingContent,
+  setOverridingContent,
+  requiresUndoAndRefresh,
+  setRequiresUndoAndRefresh,
 }) => {
   const monaco = useMonaco()
   const editorRef = useRef<any>(null)
@@ -144,12 +150,39 @@ const CodeEditor: React.FC<EditorProps> = ({
     }
   }
 
-  // keep the code updated, even though it's a ref
-  useEffect(() => {
+  // Functionality for LLM language commands
+  const makeEditsProgrammatically = (newValue: string) => {
     if (editorRef.current) {
-      editorRef.current.setValue(code.current)
+      const model = editorRef.current.getModel()
+      editorRef.current.pushUndoStop()
+      editorRef.current.executeEdits("my-source", [
+        {
+          range: model.getFullModelRange(),
+          text: newValue,
+          forceMoveMarkers: true,
+        },
+      ])
+      editorRef.current.pushUndoStop()
     }
-  }, [codeUpdateSignal])
+  }
+
+  useEffect(() => {
+    if (overridingContent !== "") {
+      makeEditsProgrammatically(overridingContent)
+      setOverridingContent("")
+    }
+  }, [overridingContent])
+
+  useEffect(() => {
+    if (requiresUndoAndRefresh && editorRef.current) {
+      editorRef.current.trigger("keyboard", "undo", null)
+      code.current = editorRef.current.getValue()
+
+      triggerCodeSave()
+      triggerRedraw()
+      setRequiresUndoAndRefresh(false)
+    }
+  }, [requiresUndoAndRefresh])
 
   return (
     <Editor

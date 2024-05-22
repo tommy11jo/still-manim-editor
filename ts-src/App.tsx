@@ -16,7 +16,7 @@ import { useSelection } from "./SelectionContext"
 import CodeEditor from "./Editor"
 import { INIT_CODE, usePyodideWebWorker } from "./PyodideContext"
 import { debounce } from "lodash"
-import ChatBox from "./components/ChatInput"
+import ChatBox from "./components/Chat"
 import { generateCode } from "./prompting/editApi"
 
 const REFRESH_RATE = 300 // refresh every 300ms
@@ -29,8 +29,7 @@ const DEMO_MAP = {
   sin_and_cos: SIN_AND_COS_DEMO,
   graph_demo: GRAPH_DEMO,
 }
-function randId(): string {
-  const length = 10
+function randId(length: number = 10): string {
   let result = ""
   const characters =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -82,9 +81,11 @@ const App = () => {
   const [blobToContent, setBlobToContent] = useState<Record<string, string>>({})
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
-  const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false)
+
   const [apiKey, setApiKey] = useState("")
-  const [tempApiKey, setTempApiKey] = useState("")
+  const [overridingContent, setOverridingContent] = useState("")
+  const [requiresUndoAndRefresh, setRequiresUndoAndRefresh] = useState(false)
+
   const { downloadSvg, downloadSvgAsPng } = useSvgDownloader()
 
   const [isMac, setIsMac] = useState(false)
@@ -247,7 +248,10 @@ const App = () => {
         if (!filenames.includes(title)) {
           const newBlobId = randId()
           setFilenames((filenames) => [...filenames, title])
-          setNameToBlob((nameToBlob) => ({ ...nameToBlob, [title]: newBlobId }))
+          setNameToBlob((nameToBlob) => ({
+            ...nameToBlob,
+            [title]: newBlobId,
+          }))
           setBlobToContent((blobToContent) => ({
             ...blobToContent,
             [newBlobId]: code.current,
@@ -312,15 +316,9 @@ const App = () => {
     }
     return newName
   }
-  //   const saveCurrentOpenFile = (title: string, codeStr: string) => {
-  //     const currentBlob = nameToBlob[title]
-  //     blobToContent[currentBlob] = codeStr
-  //     localStorage.setItem("blobToContent", JSON.stringify(blobToContent))
-  //   }
 
   const generateNewFile = useCallback(
     (newTitle?: string, newCode?: string) => {
-      // saveCurrentOpenFile(title, code.current)
       if (newTitle) {
         const newName = nextAvailableFilename(filenames, newTitle)
         setTitle(newName)
@@ -375,25 +373,11 @@ const App = () => {
     }
   }, [triggerRedraw, triggerCodeSave])
 
-  useEffect(() => {
-    const storedKey = localStorage.getItem("openai_api_key") ?? ""
-    setApiKey(storedKey)
-    setTempApiKey(storedKey)
-  }, [])
-
-  const handleApiKeySave = () => {
-    setApiKey(tempApiKey)
-    localStorage.setItem("openai_api_key", tempApiKey)
-    setApiKeyModalOpen(false)
-  }
-  const handleApiKeyCancel = () => {
-    setApiKeyModalOpen(false)
-    setTempApiKey("")
-  }
-
-  const [codeUpdateSignal, setCodeUpdateSignal] = useState(0)
-
-  const sendLanguageCommand = async (command: string) => {
+  const sendLanguageCommand = async (
+    command: string,
+    setLoading: (value: boolean) => void
+  ) => {
+    setLoading(true)
     const updatedCode = await generateCode(
       command,
       code.current,
@@ -403,10 +387,11 @@ const App = () => {
     )
     if (updatedCode) {
       code.current = updatedCode
+      setOverridingContent(code.current)
     }
     triggerRedraw()
     triggerCodeSave()
-    setCodeUpdateSignal((value) => value + 1)
+    setLoading(false)
   }
   return (
     <div
@@ -626,41 +611,7 @@ const App = () => {
               </div>
             </div>
           )}
-          {apiKeyModalOpen && (
-            <div className="modal-container">
-              <div className="modal-content">
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    gap: "0.3rem",
-                    alignItems: "center",
-                    flexDirection: "column",
-                    fontSize: "18px",
-                  }}
-                >
-                  <span>OpenAI API Key</span>
-                  <input
-                    value={tempApiKey}
-                    onChange={(e) => setTempApiKey(e.target.value)}
-                    style={{ width: "100%" }}
-                  />
-                  <div>
-                    <span
-                      onClick={handleApiKeyCancel}
-                      className="action-text"
-                      style={{ paddingRight: "2rem" }}
-                    >
-                      Cancel
-                    </span>
-                    <span onClick={handleApiKeySave} className="action-text">
-                      Save
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+
           <div
             style={{
               flex: "1 1 0%",
@@ -680,7 +631,10 @@ const App = () => {
                 errorMessage={errorMessage}
                 errorLine={errorLine}
                 lineNumbersToHighlight={lineNumbersToHighlight}
-                codeUpdateSignal={codeUpdateSignal}
+                overridingContent={overridingContent}
+                setOverridingContent={setOverridingContent}
+                requiresUndoAndRefresh={requiresUndoAndRefresh}
+                setRequiresUndoAndRefresh={setRequiresUndoAndRefresh}
               />
             ) : (
               "Loading..."
@@ -719,6 +673,12 @@ const App = () => {
 
         <div style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
           {canvasRef === null || (isLoading && <div>Loading...</div>)}
+          <ChatBox
+            handleSend={sendLanguageCommand}
+            apiKey={apiKey}
+            setApiKey={setApiKey}
+            setRequiresUndoAndRefresh={setRequiresUndoAndRefresh}
+          />
           <div
             style={{
               display: "flex",
@@ -770,7 +730,6 @@ const App = () => {
               )}
             </div>
           </div>
-
           <div ref={setCanvasRef}></div>
           {!isLoading && (
             <div
@@ -790,26 +749,6 @@ const App = () => {
               </span>
             </div>
           )}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "0.3rem",
-              padding: "2rem",
-              borderTop: "1px solid black",
-            }}
-          >
-            <div>
-              <span
-                className="action-text"
-                onClick={() => setApiKeyModalOpen(true)}
-              >
-                Set API Key
-              </span>
-            </div>
-            {apiKey !== "" && <ChatBox handleSend={sendLanguageCommand} />}
-          </div>
         </div>
       </div>
     </div>
