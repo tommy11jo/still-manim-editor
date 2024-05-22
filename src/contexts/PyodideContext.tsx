@@ -5,7 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react"
-import { MobjectMetadataMap } from "./types"
+import { MobjectMetadataMap } from "../types"
 
 type ErrorInfoType = {
   customOutput: string

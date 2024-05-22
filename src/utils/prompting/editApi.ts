@@ -1,7 +1,7 @@
 import OpenAI from "openai"
 import { EDIT_PROMPT, Message } from "./editPrompts"
 import { applyEdits, findEditBlocks } from "./editBlocks"
-import { MobjectMetadataMap } from "../types"
+import { MobjectMetadataMap } from "../../types"
 
 export const generateCode = async (
   instruction: string,

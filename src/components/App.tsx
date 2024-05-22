@@ -1,26 +1,25 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
-import "./index.css"
+import "../../public/index.css"
 
-import { MobjectMetadataMap } from "./types"
 import {
   GRAPH_DEMO,
   IDRAW_SELECTION_DEMO,
   LEMON_DEMO,
   SIN_AND_COS_DEMO,
   SMANIM_INTRO,
-} from "./demos"
+} from "../utils/demos"
 
-import { useSvgDownloader } from "./svgDownloader"
-import { useSelection } from "./SelectionContext"
+import { useSvgDownloader } from "../utils/svgDownloader"
+import { useSelection } from "../contexts/SelectionContext"
 
 import CodeEditor from "./Editor"
-import { INIT_CODE, usePyodideWebWorker } from "./PyodideContext"
+import { INIT_CODE, usePyodideWebWorker } from "../contexts/PyodideContext"
 import { debounce } from "lodash"
-import ChatBox from "./components/Chat"
-import { generateCode } from "./prompting/editApi"
+import ChatBox from "./Chat"
+import { generateCode } from "../utils/prompting/editApi"
 
-const REFRESH_RATE = 300 // refresh every 300ms
-const CODE_SAVE_RATE = 3000 // save every 3s
+const REFRESH_RATE_IN_MS = 300
+const CODE_SAVE_RATE_IN_MS = 3000
 
 const DEMO_MAP = {
   smanim_intro: SMANIM_INTRO,
@@ -65,6 +64,8 @@ const App = () => {
     pyodideRunStatus,
   } = usePyodideWebWorker()
 
+  const { downloadSvg, downloadSvgAsPng } = useSvgDownloader()
+
   const [isLoading, setIsLoading] = useState(false)
   const [canvasRef, setCanvasRef] = useState<HTMLDivElement | null>(null)
 
@@ -74,6 +75,7 @@ const App = () => {
   const [codeSaved, setCodeSaved] = useState(true)
 
   const redrawInProgress = useRef(false)
+
   // invariants: if name exists in filenames, then name exists as key in nameToBlob
   // if blob id exists as value in nameToBlob, then blob id exists as key in blobToContent
   const [filenames, setFilenames] = useState<string[]>([])
@@ -81,19 +83,17 @@ const App = () => {
   const [blobToContent, setBlobToContent] = useState<Record<string, string>>({})
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [isMac, setIsMac] = useState(false)
 
   const [apiKey, setApiKey] = useState("")
   const [overridingContent, setOverridingContent] = useState("")
   const [requiresUndoAndRefresh, setRequiresUndoAndRefresh] = useState(false)
 
-  const { downloadSvg, downloadSvgAsPng } = useSvgDownloader()
-
-  const [isMac, setIsMac] = useState(false)
-
   useEffect(() => {
     const userAgent = window.navigator.userAgent.toLowerCase()
     setIsMac(userAgent.indexOf("mac") !== -1)
   }, [])
+
   // clear cookies to reset storage for testing
   // keep local storage in sync with state vars for managinng filenames, blob ids, and file content
   useEffect(() => {
@@ -149,6 +149,7 @@ const App = () => {
     setWaitingForExecution(true)
     // invariant: title is guaranteed to be updated within 3 seconds of mounting, so the first save will use the updated title
   }, [])
+
   useEffect(() => {
     localStorage.setItem("filenames", JSON.stringify(filenames))
   }, [filenames])
@@ -233,7 +234,7 @@ const App = () => {
         setTimeout(() => {
           runPythonCodeInWorker()
           redrawInProgress.current = false
-        }, REFRESH_RATE)
+        }, REFRESH_RATE_IN_MS)
       }
     }
   }, [canvasRef, isAutoRefreshing, isBidirectional, runPythonCodeInWorker])
@@ -271,7 +272,7 @@ const App = () => {
         }
         setCodeSaved(true)
       },
-      CODE_SAVE_RATE,
+      CODE_SAVE_RATE_IN_MS,
       { leading: true, trailing: true }
     ),
     [title, filenames, nameToBlob, blobToContent]
@@ -300,7 +301,6 @@ const App = () => {
     setFilenames(
       filenames.map((fname) => (fname == oldTitle ? newTitle : fname))
     )
-
     setNameToBlob((nameToBlob) => ({ ...nameToBlob, [newTitle]: oldContent }))
   }
 
@@ -331,6 +331,7 @@ const App = () => {
     },
     [title, runPythonCodeInWorker]
   )
+
   const deleteCurrentFile = () => {
     setFilenames((filenames) => filenames.filter((fname) => fname !== title))
     const blobId = nameToBlob[title]
@@ -352,6 +353,7 @@ const App = () => {
   const handleDownloadSvg = () => {
     if (svgContent !== null) downloadSvg(title, svgContent)
   }
+
   const handleDownloadPng = () => {
     if (svgContent !== null)
       downloadSvgAsPng(title, svgContent, width.current, height.current)
@@ -365,9 +367,7 @@ const App = () => {
         triggerCodeSave()
       }
     }
-
     window.addEventListener("keydown", handleSaveShortcut)
-
     return () => {
       window.removeEventListener("keydown", handleSaveShortcut)
     }

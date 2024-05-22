@@ -8,7 +8,7 @@ const express = require("express")
 
 module.exports = {
   mode: prod ? "production" : "development",
-  entry: "./ts-src/index.tsx",
+  entry: "./src/index.tsx",
   output: {
     path: __dirname + "/dist/",
   },
@@ -46,10 +46,7 @@ module.exports = {
         express.static(path.join(__dirname, "public"))
       )
       // required for the web worker
-      devServer.app.use(
-        "/scripts",
-        express.static(path.join(__dirname, "ts-src"))
-      )
+      devServer.app.use("/scripts", express.static(path.join(__dirname, "src")))
 
       return middlewares
     },
@@ -57,13 +54,16 @@ module.exports = {
   devtool: prod ? undefined : "source-map",
   plugins: [
     new HtmlWebpackPlugin({
-      template: "./ts-src/index.html",
+      template: "./public/index.html",
     }),
     new MiniCssExtractPlugin(),
     new CopyPlugin({
       patterns: [
         { from: "./public/", to: "./public" },
-        { from: "./ts-src/pyodideWorker.js", to: "./scripts/pyodideWorker.js" },
+        {
+          from: "./src/utils/pyodideWorker.js",
+          to: "./scripts/pyodideWorker.js",
+        },
       ],
     }),
   ],

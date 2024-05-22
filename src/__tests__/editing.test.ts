@@ -1,4 +1,4 @@
-import { findEditBlocks, applyEdits } from "../prompting/editBlocks"
+import { findEditBlocks, applyEdits } from "../utils/prompting/editBlocks"
 
 test("simple math test", () => {
   const content = `Some initial content.
