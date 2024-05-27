@@ -56,6 +56,10 @@ body {
   max-width: 500px;
 }
 
+a {
+  text-decoration: none;
+}
+
 /* CSS for SVG element */
 .clickable {
   cursor: pointer;

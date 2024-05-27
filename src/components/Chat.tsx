@@ -7,6 +7,7 @@ interface ChatBoxProps {
   apiKey: string
   setApiKey: (value: string) => void
   setRequiresUndoAndRefresh: (value: boolean) => void
+  output: string
 }
 
 const ChatBox: React.FC<ChatBoxProps> = ({
@@ -14,6 +15,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
   apiKey,
   setApiKey,
   setRequiresUndoAndRefresh,
+  output,
 }) => {
   const [text, setText] = useState("")
   const [loadingChatResponse, setLoadingChatResponse] = useState(false)
@@ -61,6 +63,13 @@ const ChatBox: React.FC<ChatBoxProps> = ({
   const handleApiKeyCancel = () => {
     setApiKeyModalOpen(false)
     setTempApiKey("")
+  }
+
+  const handleFixError = () => {
+    if (!output) {
+      alert("No error to fix")
+    }
+    handleSend(`Fix this:\n${output}`, setLoadingChatResponse)
   }
 
   return (
@@ -129,7 +138,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
               onKeyDown={handleKeyDown}
               placeholder={
                 apiKey === ""
-                  ? "Setup API key before using..."
+                  ? "Setup LLM API key before using language commands..."
                   : "Send command..."
               }
               className="textarea"
@@ -157,17 +166,29 @@ const ChatBox: React.FC<ChatBoxProps> = ({
               padding: "0.3rem",
             }}
           >
-            <span
-              className="action-text"
-              onClick={() => setRequiresUndoAndRefresh(true)}
-            >
-              Undo
-            </span>
+            <div>
+              <span
+                className="action-text"
+                onClick={() => setRequiresUndoAndRefresh(true)}
+              >
+                Undo
+              </span>
+              <span
+                className="action-text"
+                onClick={handleFixError}
+                style={{
+                  paddingLeft: "0.5rem",
+                  margin: "0.5rem",
+                }}
+              >
+                Fix Error
+              </span>
+            </div>
             <span
               className="action-text"
               onClick={() => setApiKeyModalOpen(true)}
             >
-              Set API Key
+              Set LLM API Key
             </span>
           </div>
         </div>

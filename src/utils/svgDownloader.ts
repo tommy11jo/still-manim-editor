@@ -17,13 +17,16 @@ export function useSvgDownloader() {
     fileName: string,
     svgContent: string,
     width: number,
-    height: number
+    height: number,
+    scaleFactor: number = 2
   ) => {
+    const scaledWidth = width * scaleFactor
+    const scaledHeight = height * scaleFactor
+
     const preset = presets.offscreen()
-    const canvas = new OffscreenCanvas(width, height)
+    const canvas = new OffscreenCanvas(scaledWidth, scaledHeight)
     const ctx = canvas.getContext("2d")!
-    // converting to context and rendering typically takes 0.02s-0.04s, so its not a bottleneck
-    // for adding selection boxes, I can either directly add to the svg or convert to canvas
+
     const v = await Canvg.from(ctx, svgContent, preset)
     await v.render()
 

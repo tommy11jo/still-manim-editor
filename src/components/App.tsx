@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
+
 import "../../public/index.css"
 
 import {
@@ -22,11 +23,11 @@ const REFRESH_RATE_IN_MS = 300
 const CODE_SAVE_RATE_IN_MS = 3000
 
 const DEMO_MAP = {
+  language_command: IDRAW_SELECTION_DEMO,
+  graph_demo: GRAPH_DEMO,
   smanim_intro: SMANIM_INTRO,
   lemon_logo: LEMON_DEMO,
-  selection_demo: IDRAW_SELECTION_DEMO,
   sin_and_cos: SIN_AND_COS_DEMO,
-  graph_demo: GRAPH_DEMO,
 }
 function randId(length: number = 10): string {
   let result = ""
@@ -62,6 +63,7 @@ const App = () => {
     errorMessage,
     errorLine,
     pyodideRunStatus,
+    pyodideLoaded,
   } = usePyodideWebWorker()
 
   const { downloadSvg, downloadSvgAsPng } = useSvgDownloader()
@@ -278,13 +280,17 @@ const App = () => {
     [title, filenames, nameToBlob, blobToContent]
   )
 
-  const openExistingFile = (title: string) => {
-    setTitle(title)
-    setCodeSaved(true)
-    const blobId = nameToBlob[title]
-    code.current = blobToContent[blobId]
-    runPythonCodeInWorker()
-  }
+  const openExistingFile = useCallback(
+    (title: string) => {
+      if (!pyodideLoaded) return
+      setTitle(title)
+      setCodeSaved(true)
+      const blobId = nameToBlob[title]
+      code.current = blobToContent[blobId]
+      runPythonCodeInWorker()
+    },
+    [pyodideLoaded]
+  )
 
   const handleKeyDownTitle = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
@@ -319,6 +325,7 @@ const App = () => {
 
   const generateNewFile = useCallback(
     (newTitle?: string, newCode?: string) => {
+      if (!pyodideLoaded) return
       if (newTitle) {
         const newName = nextAvailableFilename(filenames, newTitle)
         setTitle(newName)
@@ -329,7 +336,7 @@ const App = () => {
       code.current = newCode ? newCode : INIT_CODE
       runPythonCodeInWorker()
     },
-    [title, runPythonCodeInWorker]
+    [pyodideLoaded, title, runPythonCodeInWorker]
   )
 
   const deleteCurrentFile = () => {
@@ -354,9 +361,9 @@ const App = () => {
     if (svgContent !== null) downloadSvg(title, svgContent)
   }
 
-  const handleDownloadPng = () => {
+  const handleDownloadPng = (scalar: number) => {
     if (svgContent !== null)
-      downloadSvgAsPng(title, svgContent, width.current, height.current)
+      downloadSvgAsPng(title, svgContent, width.current, height.current, scalar)
   }
 
   useEffect(() => {
@@ -422,20 +429,34 @@ const App = () => {
             fontSize: "50px",
           }}
         >
-          Still Manim
+          Still Manim Editor
         </div>
-        <a
-          href="https://github.com/tommy11jo/still-manim-editor"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ marginLeft: "auto", textDecoration: "none" }}
-          className="smanim"
+
+        <div
+          style={{
+            marginLeft: "auto",
+            display: "flex",
+            alignItems: "center",
+            gap: "1rem",
+          }}
         >
-          <img
-            src="public/github-logo.png"
-            style={{ width: "3rem", height: "3rem" }}
-          ></img>
-        </a>
+          <span>
+            <a
+              href="https://smanim-docs.vercel.app"
+              className="action-text"
+              target="_blank"
+            >
+              Documentation
+            </a>
+          </span>
+          <a
+            href="https://github.com/tommy11jo/still-manim-editor"
+            className="action-text"
+            target="_blank"
+          >
+            Github
+          </a>
+        </div>
       </div>
       <div
         className="muted-text"
@@ -678,6 +699,7 @@ const App = () => {
             apiKey={apiKey}
             setApiKey={setApiKey}
             setRequiresUndoAndRefresh={setRequiresUndoAndRefresh}
+            output={output}
           />
           <div
             style={{
@@ -744,9 +766,33 @@ const App = () => {
               <span className="action-text" onClick={handleDownloadSvg}>
                 Download SVG
               </span>
-              <span className="action-text" onClick={handleDownloadPng}>
-                Download PNG
-              </span>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "1rem",
+                }}
+              >
+                <span>Download PNG: </span>
+                <span
+                  className="action-text"
+                  onClick={() => handleDownloadPng(1)}
+                >
+                  1x
+                </span>
+                <span
+                  className="action-text"
+                  onClick={() => handleDownloadPng(2)}
+                >
+                  2x
+                </span>
+
+                <span
+                  className="action-text"
+                  onClick={() => handleDownloadPng(4)}
+                >
+                  4x
+                </span>
+              </div>
             </div>
           )}
         </div>

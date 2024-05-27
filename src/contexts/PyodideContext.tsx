@@ -31,6 +31,7 @@ interface PyodideContextType {
   errorMessage: string | null
   errorLine: number | null
   pyodideRunStatus: PyodideRunStatus
+  pyodideLoaded: boolean
 }
 
 const PyodideContext = createContext<PyodideContextType | undefined>(undefined)
@@ -66,6 +67,7 @@ export const PyodideProvider: React.FC<React.PropsWithChildren<{}>> = ({
   const [mobjectMetadataMap, setMobjectMetadataMap] =
     useState<MobjectMetadataMap>({})
   const [svgContent, setSvgContent] = useState<any>(null)
+  const [pyodideLoaded, setPyodideLoaded] = useState(false)
 
   const width = useRef(100)
   const height = useRef(100)
@@ -110,6 +112,7 @@ export const PyodideProvider: React.FC<React.PropsWithChildren<{}>> = ({
           event.data.metadataMapStr
         )
         setMobjectMetadataMap(metadataMap)
+        if (pyodideRunStatus === "none") setPyodideLoaded(true)
         setPyodideRunStatus("success")
         setOutput(output)
         setErrorLine(null)
@@ -197,6 +200,7 @@ export const PyodideProvider: React.FC<React.PropsWithChildren<{}>> = ({
         errorMessage,
         errorLine,
         pyodideRunStatus,
+        pyodideLoaded,
       }}
     >
       {children}

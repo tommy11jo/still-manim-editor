@@ -39,8 +39,12 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
       "smanim-canvas"
     ) as unknown as SVGSVGElement
 
-    const trueBgRectId = metadataMap["bg_rect"].id
-    const svgBgRect = document.getElementById(trueBgRectId)
+    let svgBgRect = null
+
+    if ("bg_rect" in metadataMap) {
+      const trueBgRectId = metadataMap["bg_rect"].id
+      svgBgRect = document.getElementById(trueBgRectId)
+    }
     svgCanvas.addEventListener("click", (event) => {
       // clicks on empty areas or on background element
       if (event.target === event.currentTarget || event.target === svgBgRect) {
