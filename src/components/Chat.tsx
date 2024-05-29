@@ -163,7 +163,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
             style={{
               display: "flex",
               justifyContent: "space-between",
-              padding: "0.3rem",
+              marginTop: "0.3rem",
             }}
           >
             <div>

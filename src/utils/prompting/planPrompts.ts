@@ -32,7 +32,7 @@ The diagram is represented by code using the python library smanim.
 Smanim is based on 3blue1brown's manim, which you are familiar with.
 
 Thoughts: Using the smanim cheatsheet, think out loud and consider which classes and functions might be relevant.
-Plan: Then, Output *the simplest* plan possible in 1-4 sentences that describes how to edit the diagram to complete the user's instruction.
+Plan: Then, output *the simplest* plan possible in 1-4 sentences that describes how to edit the diagram to complete the user's instruction. Be concrete and clear.
 Relevant Files: Finally, write the filenames of 2-4 of the most relevant files (in the format "filename.mdx") from the smanim cheatsheet for completing this plan.
 
 Do not write any code, except optionally small snippets for planning!
@@ -56,7 +56,7 @@ const generateUserMessage = async (
 ): Promise<Message> => {
   const cheatsheet = await fetchCheatsheet()
   const selectedMobjectsListStr = readableSelectedMobjects.map(
-    (mobjectStr, i) => `${i}. ${mobjectStr}`
+    (mobjectStr, i) => `${i}. ${mobjectStr}\n`
   )
   const selectedMobjectsStr =
     selectedMobjectsListStr.length === 0

@@ -15,7 +15,8 @@ export const generateCode = async (
   model: string = "gpt-4o",
   temperature: number = 0.4,
   //   approach = "rewrite"
-  approach = "edit"
+  approach = "edit",
+  logPrompts: boolean = true
 ) => {
   if (approach === "edit")
     return await generateCodeByEditting(
@@ -46,7 +47,8 @@ const generateCodeByEditting = async (
   mobjectMetadataMap: MobjectMetadataMap,
   //   model: string = "gpt-3.5-turbo",
   model: string = "gpt-4o",
-  temperature: number = 0.4
+  temperature: number = 0.4,
+  logPrompts: boolean = true
 ) => {
   const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
   const readableSelectedMobjects = selectedMobjectIds.map((mobjectId) => {
@@ -95,6 +97,28 @@ const generateCodeByEditting = async (
 
   const editBlocks = findEditBlocks(responseStr)
   const { content, editsApplied } = applyEdits(pythonCode, editBlocks)
+
+  if (logPrompts) {
+    const allPlanMessages = [
+      ...planMessages.map((message) => message.content),
+      planText,
+    ]
+    const allEditMessages = [
+      ...editMessages.map((message) => message.content),
+      responseStr,
+    ]
+
+    let index = 0
+    for (const message of allPlanMessages) {
+      console.log(`plan message ${index}: ${message}`)
+      index++
+    }
+    index = 0
+    for (const message of allEditMessages) {
+      console.log(`edit message ${index}: ${message}`)
+      index++
+    }
+  }
   return content
 }
 
@@ -143,7 +167,8 @@ const generateCodeByRewriting = async (
   mobjectMetadataMap: MobjectMetadataMap,
   //   model: string = "gpt-3.5-turbo",
   model: string = "gpt-4o",
-  temperature: number = 0.4
+  temperature: number = 0.4,
+  logPrompts: boolean = true
 ) => {
   const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
   const readableSelectedMobjects = selectedMobjectIds.map((mobjectId) => {
@@ -191,5 +216,27 @@ const generateCodeByRewriting = async (
   if (responseStr === null) throw new Error("Chat response should not be null.")
 
   const updatedCode = extractUpdatedCode(responseStr)
+
+  if (logPrompts) {
+    const allPlanMessages = [
+      ...planMessages.map((message) => message.content),
+      planText,
+    ]
+    const allRewriteMessages = [
+      ...rewriteMessages.map((message) => message.content),
+      responseStr,
+    ]
+
+    let index = 0
+    for (const message of allPlanMessages) {
+      console.log(`plan message ${index}: ${message}`)
+      index++
+    }
+    index = 0
+    for (const message of allRewriteMessages) {
+      console.log(`edit message ${index}: ${message}`)
+      index++
+    }
+  }
   return updatedCode
 }

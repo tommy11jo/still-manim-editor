@@ -54,7 +54,7 @@ export const PyodideProvider: React.FC<React.PropsWithChildren<{}>> = ({
 }) => {
   // for complex graphics, using bidirectional editing with settrace is a 4x slowdown
   // isBidirectional must be here, not in App.tsx, since it affects python code execution
-  const [isBidirectional, setIsBidirectional] = useState(false)
+  const [isBidirectional, setIsBidirectional] = useState(true)
 
   const [pyodideLoadTimeInSeconds, setPyodideLoadTimeInSeconds] = useState(0)
   const [graphicRunTimeInSeconds, setGraphicRunTimeInSeconds] = useState(0)

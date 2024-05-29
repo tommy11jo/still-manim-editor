@@ -17,7 +17,7 @@ import CodeEditor from "./Editor"
 import { INIT_CODE, usePyodideWebWorker } from "../contexts/PyodideContext"
 import { debounce } from "lodash"
 import ChatBox from "./Chat"
-import { generateCode } from "../utils/prompting/editApi"
+import { generateCode } from "../utils/prompting/generateCode"
 
 const REFRESH_RATE_IN_MS = 300
 const CODE_SAVE_RATE_IN_MS = 3000
@@ -220,7 +220,12 @@ const App = () => {
   runPythonCodeInWorkerRef.current = runPythonCodeInWorker
   // Use the most recent runPythonCodeInWorker function but don't allow it to trigger this effect
   useEffect(() => {
-    if (canvasRef !== null && isBidirectional) {
+    if (
+      canvasRef !== null &&
+      pyodideRunStatus !== "running" &&
+      pyodideRunStatus !== "none" &&
+      isBidirectional
+    ) {
       runPythonCodeInWorkerRef.current()
     }
   }, [canvasRef, isBidirectional])
@@ -289,7 +294,7 @@ const App = () => {
       code.current = blobToContent[blobId]
       runPythonCodeInWorker()
     },
-    [pyodideLoaded]
+    [pyodideLoaded, nameToBlob, blobToContent, runPythonCodeInWorker]
   )
 
   const handleKeyDownTitle = (event: React.KeyboardEvent<HTMLInputElement>) => {

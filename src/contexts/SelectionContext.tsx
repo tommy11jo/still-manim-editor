@@ -117,8 +117,8 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
       return
     }
     const resetLevelAndUp = (parentId: string) => {
-      // sets the default hoverability and clickability
-      if (parentId === "none") return
+      /* sets the default hoverability and clickability */
+      if (parentId === "None") return
       // reset all direct children (except bg_rect) of the canvas root node to be clickable and hoverable, and the rest not to be
       for (const childId of mobjectMetadatas[parentId].children) {
         const childEl = document.getElementById(
@@ -148,6 +148,18 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
         element.classList.remove("clickable")
       }
     }
+    const removeSiblingInteractivity = (mobjectId: string) => {
+      const parentId = mobjectMetadatas[mobjectId].parent
+      if (!parentId || parentId === "None" || parentId === "canvas") return
+
+      for (const siblingId of mobjectMetadatas[parentId].children) {
+        const element = document.getElementById(
+          siblingId
+        ) as unknown as SVGGraphicsElement
+        element.style.pointerEvents = "none"
+        element.classList.remove("clickable")
+      }
+    }
     selectedMobjectIds.current.forEach((prevSelMobjectId) => {
       const prevSelMobjectData = mobjectMetadatas[prevSelMobjectId]
       if (newMobjectId === null) {
@@ -156,6 +168,7 @@ export const SelectionProvider: React.FC<React.PropsWithChildren<{}>> = ({
       } else if (prevSelMobjectId === mobjectMetadatas[newMobjectId].parent) {
         // if the newly selected mobject is a child of the previously selected mobject
         removeChildInteractivity(prevSelMobjectId)
+        removeSiblingInteractivity(prevSelMobjectId)
       } else if (
         prevSelMobjectData.parent === mobjectMetadatas[newMobjectId].parent
       ) {

@@ -3,11 +3,12 @@ You are editing code that is written using the python library smanim.
 Smanim is based on 3blue1brown's manim, which you are familiar with.
 You will also be provided with relevant smanim docs to show correct library usage.
 
-1. Update the provided CURRENT PLAN so that it is the most sensible and simple plan to complete the user's instruction, given the relevant docs.
+1. Rewrite the provided INITIAL PLAN so that it is the most sensible way to complete the user's instruction. Often, it needs to be scrapped. Make sure to use the docs when relevant.
 2. Output "Now let's implement this updated plan with SEARCH/REPLACE blocks:".
 3. Execute the new plan by generating SEARCH/REPLACE blocks, which will be applied to edit the diagram code.
 
 Useful Tips:
+- Do not change unrelated parts or unrelated properties of the diagram.
 - The content of the SEARCH block must EXACTLY match the original diagram code (including any newlines and comments).
 - Each SEARCH/REPLACE block should be as small as possible.
 - You can add lines of code without truly replacing them by writing the existing line in both the SEARCH and REPLACE sections.
@@ -52,7 +53,7 @@ const fetchMdxFile = async (slug: string): Promise<string> => {
 }
 const generateUserMessage = async (
   userInstruction: string,
-  currentPlan: string,
+  initialPlan: string,
   fileSlugs: string[],
   pythonCode: string
 ): Promise<Message> => {
@@ -81,8 +82,8 @@ ${pythonCode}
 USER INSTRUCTION:
 ${userInstruction}
 
-CURRENT PLAN:
-${currentPlan}
+INITIAL PLAN:
+${initialPlan}
 `,
   }
 }
