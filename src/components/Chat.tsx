@@ -184,12 +184,15 @@ const ChatBox: React.FC<ChatBoxProps> = ({
                 Fix Error
               </span>
             </div>
-            <span
-              className="action-text"
-              onClick={() => setApiKeyModalOpen(true)}
-            >
-              Set LLM API Key
-            </span>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span
+                className="action-text"
+                onClick={() => setApiKeyModalOpen(true)}
+              >
+                Set LLM API Key
+              </span>
+              <span className="muted-text">Costs ~$0.03 per query</span>
+            </div>
           </div>
         </div>
       </div>

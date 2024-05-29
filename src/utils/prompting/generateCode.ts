@@ -144,6 +144,7 @@ const extractPlanAndFileSlugs = (planText: string) => {
         file
           .trim()
           .replace(/^- /, "")
+          .replace(/\[([^\]]+)\]\([^\)]+\)/, "$1") // Handle misformatted files like [ex1.mdx](ex1.mdx)
           .replace(/\.(mdx|md)$/, "")
       )
       .filter((file) => file)

@@ -111,7 +111,7 @@ const App = () => {
       try {
         const filenamesList = JSON.parse(curFilenamesStr)
         setFilenames(filenamesList)
-        if (filenamesList.length > 1) {
+        if (filenamesList.length >= 1) {
           const fname = filenamesList[filenamesList.length - 1]
           curTitle = fname
           setTitle(fname)
@@ -287,33 +287,47 @@ const App = () => {
 
   const openExistingFile = useCallback(
     (title: string) => {
-      if (!pyodideLoaded) return
       setTitle(title)
       setCodeSaved(true)
       const blobId = nameToBlob[title]
       code.current = blobToContent[blobId]
-      runPythonCodeInWorker()
+      if (pyodideLoaded) runPythonCodeInWorker()
     },
     [pyodideLoaded, nameToBlob, blobToContent, runPythonCodeInWorker]
   )
 
-  const handleKeyDownTitle = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault()
-      event.currentTarget.blur()
-    }
-  }
-
-  const updateTitle = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const oldTitle = title
-    const oldContent = nameToBlob[oldTitle]
-    const newTitle = event.target.value
-    setTitle(newTitle)
-    setFilenames(
-      filenames.map((fname) => (fname == oldTitle ? newTitle : fname))
-    )
-    setNameToBlob((nameToBlob) => ({ ...nameToBlob, [newTitle]: oldContent }))
-  }
+  const [tempTitle, setTempTitle] = useState("")
+  useEffect(() => {
+    setTempTitle(title)
+  }, [title])
+  const saveTitle = useCallback(
+    (newTitle: string) => {
+      if (filenames.includes(newTitle)) {
+        setTempTitle(title)
+        return
+      }
+      const oldTitle = title
+      const oldBlob = nameToBlob[oldTitle]
+      setTitle(newTitle)
+      setFilenames(
+        filenames.map((fname) => (fname == oldTitle ? newTitle : fname))
+      )
+      const newNameToBlob = { ...nameToBlob, [newTitle]: oldBlob }
+      delete newNameToBlob[oldTitle]
+      setNameToBlob(newNameToBlob)
+    },
+    [filenames, title, nameToBlob, blobToContent]
+  )
+  const handleKeyDownTitle = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Enter") {
+        saveTitle(tempTitle)
+        event.preventDefault()
+        event.currentTarget.blur()
+      }
+    },
+    [tempTitle]
+  )
 
   const nextAvailableFilename = (
     filenamesList: string[],
@@ -330,7 +344,6 @@ const App = () => {
 
   const generateNewFile = useCallback(
     (newTitle?: string, newCode?: string) => {
-      if (!pyodideLoaded) return
       if (newTitle) {
         const newName = nextAvailableFilename(filenames, newTitle)
         setTitle(newName)
@@ -339,28 +352,26 @@ const App = () => {
         setTitle(newName)
       }
       code.current = newCode ? newCode : INIT_CODE
-      runPythonCodeInWorker()
+
+      if (pyodideLoaded) runPythonCodeInWorker()
     },
     [pyodideLoaded, title, runPythonCodeInWorker]
   )
 
-  const deleteCurrentFile = () => {
-    setFilenames((filenames) => filenames.filter((fname) => fname !== title))
+  const deleteCurrentFile = useCallback(() => {
+    setFilenames(filenames.filter((fname) => fname !== title))
+
     const blobId = nameToBlob[title]
-    setNameToBlob((current) => {
-      const copy = { ...current }
-      delete copy[title]
-      return copy
-    })
-    setBlobToContent((current) => {
-      const copy = { ...current }
-      delete current[blobId]
-      return copy
-    })
-    const newName = nextAvailableFilename(filenames)
-    setTitle(newName)
-    code.current = ""
-  }
+    const newNameToBlob = { ...nameToBlob }
+    delete newNameToBlob[title]
+    setNameToBlob(newNameToBlob)
+
+    const newBlobToContent = { ...blobToContent }
+    delete newBlobToContent[blobId]
+    setBlobToContent(newBlobToContent)
+
+    generateNewFile()
+  }, [filenames, nameToBlob, blobToContent, title, generateNewFile])
 
   const handleDownloadSvg = () => {
     if (svgContent !== null) downloadSvg(title, svgContent)
@@ -577,13 +588,38 @@ const App = () => {
               <div>
                 <span className="muted-text">File Name: </span>
                 <input
-                  value={title}
-                  onChange={updateTitle}
+                  value={tempTitle}
+                  onChange={(e) => setTempTitle(e.target.value)}
                   onKeyDown={handleKeyDownTitle}
+                  className={
+                    tempTitle !== title
+                      ? filenames.includes(tempTitle)
+                        ? "input-focus-outline-red"
+                        : "input-focus-outline-green"
+                      : ""
+                  }
                   style={{
                     fontSize: "18px",
                   }}
                 />
+                {tempTitle !== title && !filenames.includes(tempTitle) && (
+                  <span>
+                    <span
+                      className="action-text"
+                      style={{ marginLeft: "0.5rem" }}
+                      onClick={() => saveTitle(tempTitle)}
+                    >
+                      Save
+                    </span>
+                    <span
+                      className="action-text"
+                      style={{ marginLeft: "0.5rem" }}
+                      onClick={() => setTempTitle(title)}
+                    >
+                      Cancel
+                    </span>
+                  </span>
+                )}
               </div>
 
               <div>

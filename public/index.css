@@ -73,3 +73,11 @@ a {
 .line-highlight {
   background-color: rgba(135, 206, 235, 0.5);
 }
+
+.input-focus-outline-green:focus {
+  outline: 2px solid green;
+}
+
+.input-focus-outline-red:focus {
+  outline: 2px solid red;
+}

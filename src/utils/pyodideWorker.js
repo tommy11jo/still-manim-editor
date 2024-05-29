@@ -3,7 +3,7 @@ const DEFAULT_FS_DIR = "/home/pyodide/media"
 // micropip does not support local file system at the momement, which makes development difficult
 const SMANIM_WHEEL =
   // "https://files.pythonhosted.org/packages/cc/84/6914e615a7c29a87f82bebc81139231ea59e1574bba3ca8fefb37914f15d/still_manim-0.1.1-py3-none-any.whl"
-  "https://test-files.pythonhosted.org/packages/09/00/38f27c98475ef23b12c767df5a533ce5f17d1de549f207ff19b8d65e26f5/still_manim-1.1.9-py3-none-any.whl"
+  "https://test-files.pythonhosted.org/packages/c7/3b/f35e5969cd93e85b7df5ffa1e0ea4fb31ed01b1a534999804438b69028cd/still_manim-1.2.0-py3-none-any.whl"
 self.importScripts("https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js")
 
 async function loadPyodideAndPackages() {
