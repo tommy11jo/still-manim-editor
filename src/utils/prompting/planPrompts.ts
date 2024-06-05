@@ -32,7 +32,10 @@ The diagram is represented by code using the python library smanim.
 Smanim is based on 3blue1brown's manim, which you are familiar with.
 
 Thoughts: Using the smanim cheatsheet, think out loud and consider which classes and functions might be relevant.
-Plan: Then, output *the simplest* plan possible in 1-4 sentences that describes how to edit the diagram to complete the user's instruction. Be concrete and clear.
+Plan: Then, output *the simplest* plan possible in 1-4 sentences that describes how to edit the diagram to complete the user's instruction.
+- Be explicit. Do not be vague.
+- Do your best to infer user intent, rather than rigidly satisfying the instruction. 
+- Add a note to not change unrelated parts of the program.
 Relevant Files: Finally, write the filenames of 2-4 of the most relevant files (in the format "filename.mdx") from the smanim cheatsheet for completing this plan.
 
 Do not write any code, except optionally small snippets for planning!
@@ -55,14 +58,13 @@ const generateUserMessage = async (
   readableSelectedMobjects: string[]
 ): Promise<Message> => {
   const cheatsheet = await fetchCheatsheet()
-  const selectedMobjectsListStr = readableSelectedMobjects.map(
-    (mobjectStr, i) => `${i}. ${mobjectStr}\n`
-  )
+  const selectedMobjectsListStr = readableSelectedMobjects
+    .map((mobjectStr, i) => `${i}. ${mobjectStr}`)
+    .join("\n")
   const selectedMobjectsStr =
     selectedMobjectsListStr.length === 0
       ? ""
       : `
-SELECTED MOBJECTS (which the user likely refers to in their instruction):
 ${selectedMobjectsListStr}`
 
   return {
@@ -75,6 +77,7 @@ DIAGRAM CODE:
 ${pythonCode}
 \`\`\`
 
+SELECTED MOBJECTS (which the user likely refers to in their instruction):
 ${selectedMobjectsStr}
 
 USER INSTRUCTION:

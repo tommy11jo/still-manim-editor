@@ -3,7 +3,7 @@ You are editing code that is written using the python library smanim.
 Smanim is based on 3blue1brown's manim, which you are familiar with.
 You will also be provided with relevant smanim docs to show correct library usage.
 
-1. Rewrite the provided INITIAL PLAN so that it is the most sensible way to complete the user's instruction. Often, it needs to be scrapped. Make sure to use the docs when relevant.
+1. Rewrite the provided INITIAL PLAN so that it is the most sensible way to complete the user's instruction. Use your judgment. Make sure to use the docs when relevant.
 2. Output "Now let's implement this updated plan with SEARCH/REPLACE blocks:".
 3. Execute the new plan by generating SEARCH/REPLACE blocks, which will be applied to edit the diagram code.
 
@@ -39,7 +39,8 @@ export type EditPrompt = {
     userInstruction: string,
     currentPlan: string,
     fileSlugs: string[],
-    pythonCode: string
+    pythonCode: string,
+    readableSelectedMobjects: string[]
   ) => Promise<Message>
 }
 
@@ -55,8 +56,18 @@ const generateUserMessage = async (
   userInstruction: string,
   initialPlan: string,
   fileSlugs: string[],
-  pythonCode: string
+  pythonCode: string,
+  readableSelectedMobjects: string[]
 ): Promise<Message> => {
+  const selectedMobjectsListStr = readableSelectedMobjects
+    .map((mobjectStr, i) => `${i}. ${mobjectStr}`)
+    .join("\n")
+  const selectedMobjectsStr =
+    selectedMobjectsListStr.length === 0
+      ? ""
+      : `
+${selectedMobjectsListStr}`
+
   let smanimDocsStr = ""
 
   for (const slug of fileSlugs) {
@@ -78,6 +89,9 @@ DIAGRAM CODE:
 \`\`\`python
 ${pythonCode}
 \`\`\`
+
+SELECTED MOBJECTS (which the user likely refers to in their instruction):
+${selectedMobjectsStr}
 
 USER INSTRUCTION:
 ${userInstruction}

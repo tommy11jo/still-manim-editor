@@ -53,15 +53,17 @@ canvas.set_dimensions(WIDTH, HEIGHT)
 canvas.set_global_text_styles(font_family="Roboto")
 
 title = Text("Language Commands Demo", font_size=H2_FONT_SIZE)
-title.align_to(canvas.top, edge=UP, buff=0.5)
+title.align_to(canvas.top, UP, buff=0.5)
 canvas.add(title)
 
-p0_label = Text("You can construct diagrams by writing python code or by writing high-level language commands. These commands use gpt-4o under the hood so you'll need to input your API key.")
+p0_label = Text("""You can edit this diagram by directly editing the code on the left.
+Or you can send a language command that causes an AI to edit the code.""")
 row0 = Group(p0_label)
 row0.next_to(title, DOWN)
 canvas.add(row0)
 
-p1_label = Text("Let's see a language command in action. First, make sure bidirectional editing is turned on by checking the box above the code editor. Then, hover over this tree with your mouse.", max_width=PWIDTH)
+p1_label = Text("""First, make sure bidirectional editing is turned on by checking the box above the code editor.
+Then, hover over this tree with your mouse.""", max_width=PWIDTH)
 g = Graph(vertices=[0, 1, 2, 3, 4], edges=[(0, 1), (0, 2), (2, 3), (2, 4)], include_vertex_labels=True, layout='tree', root_vertex=0)
 g.next_to(p1_label, DOWN).align_to(p1_label, LEFT)
 panel1 = Group(p1_label, g).scale_to_fit_width(PWIDTH)
@@ -72,14 +74,15 @@ def add_selection_box(mob):
     mob.add(SurroundingRectangle(mob, stroke_color=PURE_BLUE, stroke_width=2.0, z_index=10))
 add_selection_box(g2)
 panel2 = Group(g2, p2_label)
+panel2.next_to(panel1, RIGHT, UP)
 
-row1 = Group(panel1, panel2).arrange(buff=1.0)
-row1.next_to(row0, DOWN, buff=0.5).align_to(canvas.left, edge=LEFT, buff=PBUFF)
+row1 = Group(panel1, panel2)
+row1.next_to(row0, DOWN, buff=0.5).align_to(canvas.left, LEFT, buff=PBUFF)
 canvas.add(row1)
 
 p3_label = Text("With the tree selected, you can also select its children or sibling components...", max_width=WIDTH - PBUFF * 2)
 p3_1_label = Text("...like this edge...")
-p3_1_label.next_to(p3_label, DOWN, buff=0.5).align_to(p3_label, edge=LEFT, buff=0.2)
+p3_1_label.next_to(p3_label, DOWN, buff=0.5).align_to(p3_label, LEFT, buff=0.2)
 g3 = g.copy()
 g3.scale_to_fit_width(p3_1_label.width).next_to(p3_1_label, DOWN)
 add_selection_box(g3.edges[(2, 3)])
@@ -92,14 +95,15 @@ add_selection_box(g4.vertices[3])
 
 arrow = Arrow.points_at(g4.vertices[2], direction=LEFT, length=0.5, buff=0.2)
 t_arrow = Text("Use command + click (mac) or ctrl + click (windows) to select multiple items at once.", font_size=14, max_width=2.0)
-t_arrow.next_to(arrow, RIGHT).align_to(arrow, edge=DOWN)
+t_arrow.next_to(arrow, RIGHT).align_to(arrow, DOWN)
 panel3 = Group(p3_label, p3_1_label, g3, p3_2_1_label, g4, arrow, t_arrow)
-panel3.next_to(row1, DOWN, buff=PBUFF).align_to(panel1, edge=LEFT)
+panel3.next_to(row1, DOWN, buff=PBUFF).align_to(panel1, LEFT)
 canvas.add(panel3)
 
-p4_text = Text("And then you can enter a 'language command', rather than clicking through a typical UI.", max_width=WIDTH - PBUFF * 2)
+p4_text = Text("""And then you can enter a 'language command', rather than writing the code directly or clicking through a typical GUI.
+(Try it! It costs ~$0.03 per command. Expensive... I know.)""", max_width=PWIDTH * 2 + PBUFF)
 p4_command = Text("> Make these two nodes red", italics=True)
-g5 = g4.copy().scale_to_fit_width(g4.width).next_to(p4_command, DOWN)
+g5 = g4.copy().next_to(p4_command, DOWN)
 box_el1 = Group(p4_command, g5)
 p4_result = Text("Result")
 g6 = g.copy().scale_to_fit_width(g5.width)
@@ -114,7 +118,7 @@ panel4 = Group(p4_text, box_list)
 panel4.next_to(panel3, DOWN, buff=PBUFF).align_to(panel3, LEFT)
 canvas.add(panel4)
 
-p5_text = Text("""Language commands work for tasks like changing the color of vertices or creating a simple tree by itself. But they do not work for more complex tasks or in complex graphics like this one... yet. Some day:""", max_width=WIDTH - PBUFF * 2)
+p5_text = Text("""However, the underlying AI cannot perform more complex tasks such as creating this diagram from scratch... at least not yet.""", max_width=PWIDTH * 2 + PBUFF)
 p5_text.next_to(panel4, DOWN, buff=PBUFF).align_to(panel4, LEFT)
 canvas.add(p5_text)
 
@@ -126,10 +130,6 @@ result_group = Group(p6_result, graphic)
 box_list = BoxList(p6_command, result_group)
 box_list.next_to(p5_text, DOWN, buff=0.5).align_to(p5_text, LEFT)
 canvas.add(box_list)
-
-p7_text = Text("Head to the next example, which is a simpler diagram, to try a language command.")
-p7_text.next_to(box_list, DOWN, LEFT, buff=PBUFF)
-canvas.add(p7_text)
 
 canvas.draw(crop=True, crop_buff=0.5)`
 

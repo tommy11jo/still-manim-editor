@@ -23,7 +23,7 @@ const REFRESH_RATE_IN_MS = 300
 const CODE_SAVE_RATE_IN_MS = 3000
 
 const DEMO_MAP = {
-  language_command: IDRAW_SELECTION_DEMO,
+  language_commands: IDRAW_SELECTION_DEMO,
   graph_demo: GRAPH_DEMO,
   smanim_intro: SMANIM_INTRO,
   lemon_logo: LEMON_DEMO,

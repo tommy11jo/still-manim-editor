@@ -39,45 +39,59 @@ End of content.`
   expect(result.content).toBe(expectedContent)
 })
 
-test("modify edge weight in adjacency list", () => {
-  const content = `{
-      0: [(1, 2), (2, 1)],
-      1: [(2, 5), (3, 11), (4, 3)],
-      2: [(5, 15)],
-      3: [(4, 2)],
-      4: [(2, 1), (5, 4), (6, 5)],
-      5: [],
-      6: [(3, 1), (5, 1)],
-  }`
+test("indent test", () => {
+  const content = `Some initial content.
+old_function()
+    indent
+old_variable = 5
+End of content.`
 
   const editBlocksContent = `
-To modify the weight of an edge, you need to update the entry in the adjacency list where the corresponding edge is defined.
-In your diagram, the selected edge is accessed as \`graph[7]\`. 
-To determine which edge this refers to, you must look at the original adjacency list and count edges according to the order in which they appear when you initialize the graph.
-
-In standard dictionaries in Python 3.7+ insertion order matters, but \`WeightedGraph.from_adjacency_list\` will process edges according to the adjacency list entries.
-
-Inspecting the adjacency list:
-
 \`\`\`python
 # ==== SEARCH START ====
-    4: [(2, 1), (5, 4), (6, 5)],
+    indent
 # ==== SEARCH END ====
 # ==== REPLACE START ====
-    4: [(2, 10), (5, 4), (6, 5)],
+unindent
 # ==== REPLACE END ====
 \`\`\`
 `
 
-  const expectedContent = `{
-      0: [(1, 2), (2, 1)],
-      1: [(2, 5), (3, 11), (4, 3)],
-      2: [(5, 15)],
-      3: [(4, 2)],
-      4: [(2, 10), (5, 4), (6, 5)],
-      5: [],
-      6: [(3, 1), (5, 1)],
-  }`
+  const expectedContent = `Some initial content.
+old_function()
+unindent
+old_variable = 5
+End of content.`
+
+  const editBlocks = findEditBlocks(editBlocksContent)
+  const result = applyEdits(content, editBlocks)
+
+  expect(result.content).toBe(expectedContent)
+})
+
+test("harder indent test", () => {
+  const content = `a b
+    c d
+e f`
+
+  const editBlocksContent = `
+  Some text here.
+\`\`\`python
+# ==== SEARCH START ====
+    c d
+# ==== SEARCH END ====
+
+# ==== REPLACE START ====
+c d
+    x y z
+# ==== REPLACE END ====
+\`\`\`
+`
+
+  const expectedContent = `a b
+c d
+    x y z
+e f`
 
   const editBlocks = findEditBlocks(editBlocksContent)
   const result = applyEdits(content, editBlocks)

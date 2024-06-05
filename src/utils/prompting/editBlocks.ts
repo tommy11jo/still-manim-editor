@@ -27,11 +27,13 @@ export function applyEdits(
 
 export function findEditBlocks(content: string): Edit[] {
   const pattern = new RegExp(
-    `${escapeRegExp(OPENING)}\\s*${escapeRegExp(
+    `${escapeRegExp(OPENING)}\\n${escapeRegExp(
       SEARCH_START
-    )}([\\s\\S]*?)${escapeRegExp(SEARCH_END)}\\s*${escapeRegExp(
+    )}\\n([\\s\\S]*?)\\n${escapeRegExp(SEARCH_END)}\\n\\n?${escapeRegExp(
       REPLACE_START
-    )}([\\s\\S]*?)${escapeRegExp(REPLACE_END)}\\s*${escapeRegExp(CLOSING)}`,
+    )}\\n([\\s\\S]*?)\\n${escapeRegExp(REPLACE_END)}\\n${escapeRegExp(
+      CLOSING
+    )}`,
     "g"
   )
   const matches = content.matchAll(pattern)
@@ -39,7 +41,7 @@ export function findEditBlocks(content: string): Edit[] {
 
   for (const match of matches) {
     if (match[1] && match[2]) {
-      editBlocks.push([match[1].trim(), match[2].trim()])
+      editBlocks.push([match[1], match[2]])
     } else {
       throw new Error("Malformed search and replace block detected")
     }

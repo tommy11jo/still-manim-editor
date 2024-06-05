@@ -83,7 +83,8 @@ const generateCodeByEditting = async (
     userInstruction,
     plan,
     fileSlugs,
-    pythonCode
+    pythonCode,
+    readableSelectedMobjects
   )
   const editMessages = [...EDIT_PROMPT.messages, editMessage]
 
