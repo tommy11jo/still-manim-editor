@@ -1,20 +1,24 @@
 import OpenAI from "openai"
+import {
+  GoogleGenerativeAI,
+  ModelParams,
+  Content as GeminiContent,
+} from "@google/generative-ai"
 import { EDIT_PROMPT, Message } from "./editPrompts"
 import { applyEdits, findEditBlocks } from "./editBlocks"
 import { MobjectMetadataMap } from "../../types"
 import { PLAN_PROMPT } from "./planPrompts"
 import { REWRITE_PROMPT, extractUpdatedCode } from "./rewritePrompting"
-
+type Model = "gpt-4o" | "gemini-1.5-pro"
 export const generateCode = async (
   userInstruction: string,
   pythonCode: string,
   apiKey: string,
   selectedMobjectIds: string[],
   mobjectMetadataMap: MobjectMetadataMap,
-  //   model: string = "gpt-3.5-turbo",
-  model: string = "gpt-4o",
-  temperature: number = 0.4,
-  //   approach = "rewrite"
+  modelName: Model = "gpt-4o",
+  // modelName: Model = "gemini-1.5-pro",
+  // approach = "rewrite"
   approach = "edit",
   logPrompts: boolean = true
 ) => {
@@ -25,8 +29,7 @@ export const generateCode = async (
       apiKey,
       selectedMobjectIds,
       mobjectMetadataMap,
-      model,
-      temperature
+      modelName
     )
   else
     return await generateCodeByRewriting(
@@ -35,8 +38,7 @@ export const generateCode = async (
       apiKey,
       selectedMobjectIds,
       mobjectMetadataMap,
-      model,
-      temperature
+      modelName
     )
 }
 const generateCodeByEditting = async (
@@ -45,12 +47,9 @@ const generateCodeByEditting = async (
   apiKey: string,
   selectedMobjectIds: string[],
   mobjectMetadataMap: MobjectMetadataMap,
-  //   model: string = "gpt-3.5-turbo",
-  model: string = "gpt-4o",
-  temperature: number = 0.4,
+  modelName: string,
   logPrompts: boolean = true
 ) => {
-  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
   const readableSelectedMobjects = selectedMobjectIds.map((mobjectId) => {
     const { lineno, type, path } = mobjectMetadataMap[mobjectId]
     let mobjectStr = `A ${type} mobject, accessed as \`${path}\``
@@ -67,12 +66,7 @@ const generateCodeByEditting = async (
 
   const planMessages = [...PLAN_PROMPT.messages, planMessage]
 
-  const planCompletion = await openai.chat.completions.create({
-    messages: planMessages,
-    model,
-    temperature,
-  })
-  const planText = planCompletion.choices[0].message.content
+  const planText = await generateChatResponse(planMessages, apiKey, modelName)
   if (planText === null) throw new Error("Error generating plan.")
 
   const extraction = extractPlanAndFileSlugs(planText)
@@ -88,15 +82,10 @@ const generateCodeByEditting = async (
   )
   const editMessages = [...EDIT_PROMPT.messages, editMessage]
 
-  const editCompletion = await openai.chat.completions.create({
-    messages: editMessages,
-    model,
-    temperature,
-  })
-  const responseStr = editCompletion.choices[0].message.content
-  if (responseStr === null) throw new Error("Chat response should not be null.")
+  const editStr = await generateChatResponse(editMessages, apiKey, modelName)
+  if (editStr === null) throw new Error("Chat response should not be null.")
 
-  const editBlocks = findEditBlocks(responseStr)
+  const editBlocks = findEditBlocks(editStr)
   const { content, editsApplied } = applyEdits(pythonCode, editBlocks)
 
   if (logPrompts) {
@@ -106,7 +95,7 @@ const generateCodeByEditting = async (
     ]
     const allEditMessages = [
       ...editMessages.map((message) => message.content),
-      responseStr,
+      editStr,
     ]
 
     let index = 0
@@ -167,12 +156,9 @@ const generateCodeByRewriting = async (
   apiKey: string,
   selectedMobjectIds: string[],
   mobjectMetadataMap: MobjectMetadataMap,
-  //   model: string = "gpt-3.5-turbo",
-  model: string = "gpt-4o",
-  temperature: number = 0.4,
+  modelName: string,
   logPrompts: boolean = true
 ) => {
-  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
   const readableSelectedMobjects = selectedMobjectIds.map((mobjectId) => {
     const { lineno, type, path } = mobjectMetadataMap[mobjectId]
     let mobjectStr = `A ${type} mobject, accessed as \`${path}\``
@@ -189,12 +175,7 @@ const generateCodeByRewriting = async (
 
   const planMessages = [...PLAN_PROMPT.messages, planMessage]
 
-  const planCompletion = await openai.chat.completions.create({
-    messages: planMessages,
-    model,
-    temperature,
-  })
-  const planText = planCompletion.choices[0].message.content
+  const planText = await generateChatResponse(planMessages, apiKey, modelName)
   if (planText === null) throw new Error("Error generating plan.")
 
   const extraction = extractPlanAndFileSlugs(planText)
@@ -209,15 +190,14 @@ const generateCodeByRewriting = async (
   )
   const rewriteMessages = [...REWRITE_PROMPT.messages, rewriteMessage]
 
-  const rewriteCompletion = await openai.chat.completions.create({
-    messages: rewriteMessages,
-    model,
-    temperature,
-  })
-  const responseStr = rewriteCompletion.choices[0].message.content
-  if (responseStr === null) throw new Error("Chat response should not be null.")
+  const rewriteStr = await generateChatResponse(
+    rewriteMessages,
+    apiKey,
+    modelName
+  )
+  if (rewriteStr === null) throw new Error("Chat response should not be null.")
 
-  const updatedCode = extractUpdatedCode(responseStr)
+  const updatedCode = extractUpdatedCode(rewriteStr)
 
   if (logPrompts) {
     const allPlanMessages = [
@@ -226,7 +206,7 @@ const generateCodeByRewriting = async (
     ]
     const allRewriteMessages = [
       ...rewriteMessages.map((message) => message.content),
-      responseStr,
+      rewriteStr,
     ]
 
     let index = 0
@@ -241,4 +221,64 @@ const generateCodeByRewriting = async (
     }
   }
   return updatedCode
+}
+
+const generateOpenAIResponse = async (
+  messages: Message[],
+  apiKey: string,
+  modelName: string,
+  temperature: number = 0.4
+) => {
+  const openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
+  const chatCompletion = await openai.chat.completions.create({
+    messages,
+    model: modelName,
+    temperature,
+  })
+  const text = chatCompletion.choices[0].message.content
+  return text
+}
+const generateGoogleAIResponse = async (
+  messages: Message[],
+  apiKey: string,
+  modelName: string,
+  temperature: number = 0.4
+) => {
+  const sysList = messages.filter((message) => message.role === "system")
+  const sysInstruction = sysList.length === 1 ? sysList[0].content : null
+  const messagesFiltered = messages.filter(
+    (message) => message.role !== "system"
+  )
+
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const modelConfig: ModelParams = {
+    model: modelName,
+    generationConfig: { temperature },
+  }
+  if (sysInstruction !== null) modelConfig.systemInstruction = sysInstruction
+  const model = genAI.getGenerativeModel(modelConfig)
+
+  const formattedMessages: GeminiContent[] = messagesFiltered.map(
+    (message) => ({
+      role: message.role,
+      parts: [{ text: message.content }],
+    })
+  )
+
+  const result = await model.generateContent({ contents: formattedMessages })
+  const text = result.response.text()
+  return text
+}
+const generateChatResponse = async (
+  messages: Message[],
+  apiKey: string,
+  modelName: string
+): Promise<string | null> => {
+  const openAIModels = ["gpt-4o", "gpt-3.5-turbo"]
+  const googleModels = ["gemini-1.5-pro"]
+  if (openAIModels.includes(modelName))
+    return await generateOpenAIResponse(messages, apiKey, modelName)
+  else if (googleModels.includes(modelName))
+    return await generateGoogleAIResponse(messages, apiKey, modelName)
+  else throw new Error(`Model ${modelName} does not exist`)
 }
